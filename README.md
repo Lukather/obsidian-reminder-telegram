@@ -1,90 +1,196 @@
-# Obsidian Sample Plugin
+# Obsidian Reminder Telegram
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Send Telegram notifications for your Obsidian tasks when they reach their deadline.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+- **YAML Frontmatter Support**: Parses tasks from markdown files with YAML frontmatter
+- **Inline Task Support**: Also supports traditional Obsidian task format (`- [ ] Task 📅 2024-01-01`)
+- **Flexible Scan Modes**: Scan entire vault or specific folders
+- **Telegram Integration**: Sends notifications via Telegram Bot API
+- **Configurable Intervals**: Check for due tasks at customizable intervals
+- **Bulk Notifications**: Receive multiple task reminders in a single message
+- **Duplicate Prevention**: Avoids sending duplicate notifications for the same task
 
-## First time developing plugins?
+## Installation
 
-Quick starting guide for new plugin devs:
+### From Obsidian Community Plugins
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+1. Go to **Settings → Community plugins → Browse**
+2. Search for "Reminder Telegram"
+3. Install and enable the plugin
 
-## Releasing new releases
+### Manual Installation
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+1. Clone this repository or download the latest release
+2. Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-reminder-telegram/` folder
+3. Reload Obsidian and enable the plugin in **Settings → Community plugins**
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Usage
 
-## Adding your plugin to the community plugin list
+### Setting Up Telegram
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+1. **Create a Telegram Bot**:
+   - Open Telegram and search for **@BotFather**
+   - Send `/newbot` command
+   - Follow instructions to name your bot and get the **Bot Token**
 
-## How to use
+2. **Get Your Chat ID**:
+   - Open Telegram and search for **@userinfobot**
+   - Send `/start` command
+   - It will reply with your **Chat ID**
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+3. **Configure the Plugin**:
+   - Go to **Settings → Reminder Telegram**
+   - Enter your **Telegram Bot Token**
+   - Enter your **Telegram Chat ID**
+   - Enable **Notifications**
+   - Set your preferred **Check Interval** (default: 30 minutes)
 
-## Manually installing the plugin
+### Task Formats Supported
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+#### YAML Frontmatter (Recommended)
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
+Create markdown files with YAML frontmatter:
 
-## Funding URL
+```markdown
+---
+status: open
+priority: normal
+scheduled: 2024-12-25
+tags:
+  - task
+---
 
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+# My Task
+Complete this task by Christmas
 ```
 
-If you have multiple URLs, you can also do:
+**Supported Frontmatter Fields:**
+- `status`: `open`, `done`, `in-progress`, `completed`, `cancelled`, `archived`
+- `scheduled`: Deadline date (ISO format: `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`)
+- `due`: Alternative deadline field
+- `tags`: Array of tags (must include `task` or `#task` to be recognized)
+- `completedDate`: If set, task is considered completed
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+#### Inline Tasks
+
+Traditional Obsidian task format within any markdown file:
+
+```markdown
+- [ ] Complete project by 📅 2024-12-25
+- [ ] Review notes due:: 2024-12-20
+- [ ] Meeting scheduled:: 2024-12-15
 ```
 
-## API Documentation
+**Supported Date Formats:**
+- `📅 YYYY-MM-DD`
+- `due:: YYYY-MM-DD`
+- `scheduled:: YYYY-MM-DD`
+- `starts:: YYYY-MM-DD`
+- Plain dates: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`
 
-See https://docs.obsidian.md
+### Scan Configuration
+
+Choose what to scan:
+
+1. **Whole Vault** (default): Scans all markdown files in your entire vault
+2. **Specific Folder**: Scans only files in a specified folder
+
+To use a specific folder:
+- Set **Scan Mode** to "Specific Folder"
+- Enter the folder path (e.g., `Tasks` or `Meta/TaskNotes/Tasks`)
+
+### Commands
+
+- **Check reminders now**: Manually trigger a deadline check
+- **Send test Telegram notification**: Verify your Telegram configuration
+
+## Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| Telegram Bot Token | string | `''` | Bot token from @BotFather |
+| Telegram Chat ID | string | `''` | Your chat ID for notifications |
+| Notifications Enabled | boolean | `true` | Enable/disable notifications |
+| Check Interval (minutes) | number | `30` | How often to check for due tasks |
+| Scan Mode | dropdown | `whole-vault` | Scan entire vault or specific folder |
+| Target Folder | string | `''` | Folder to scan (when Scan Mode is "Specific Folder") |
+
+## Notification Content
+
+### Bulk Notification (Multiple Tasks)
+```
+⏰ You have X task(s) due:
+
+• Task 1 (2024-01-01) - file1.md
+• Task 2 (2024-01-02) - file2.md
+```
+
+### Individual Notification
+```
+⏰ Task Reminder
+
+📝 Task name
+📁 File name
+📅 Deadline
+```
+
+### Test Notification
+```
+✅ Reminder Telegram plugin is working!
+
+This is a test notification from your Obsidian vault.
+```
+
+## When Notifications Are Sent
+
+1. **On startup**: If periodic checking is enabled
+2. **On interval**: Every N minutes (configurable)
+3. **Manual trigger**: Via command palette or status bar
+
+Notifications are sent for tasks that are:
+- Due today
+- Overdue (past deadline)
+
+Completed tasks (`status: done` or `[x]`) are skipped.
+
+## Development
+
+### Prerequisites
+
+- Node.js 18+
+- npm
+
+### Install Dependencies
+```bash
+npm install
+```
+
+### Development Mode (Watch)
+```bash
+npm run dev
+```
+
+### Production Build
+```bash
+npm run build
+```
+
+### Lint
+```bash
+npm run lint
+```
+
+## Contributing
+
+Pull requests are welcome! Please open an issue first for significant changes.
+
+## License
+
+This plugin is licensed under the 0-BSD License. See [LICENSE](LICENSE) for details.
+
+## Credits
+
+- Inspired by the Obsidian Tasks plugin
+- Built with Obsidian Plugin API

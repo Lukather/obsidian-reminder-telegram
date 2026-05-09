@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-reminder-telegram",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Sends Telegram notifications when your Obsidian tasks reach their deadline",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
