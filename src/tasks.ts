@@ -1,4 +1,4 @@
-import {App, TFile} from 'obsidian';
+import {App} from 'obsidian';
 
 export interface VaultTask {
 	id: string;
@@ -13,7 +13,6 @@ export interface VaultTask {
 	source: 'inline' | 'frontmatter';
 }
 
-// Settings for scanning tasks
 export interface ScanSettings {
 	scanMode: 'whole-vault' | 'specific-folder';
 	targetFolder: string;
@@ -41,7 +40,7 @@ const OBSIDIAN_DATE_PATTERNS = [
 
 function parseDate(dateString: string): Date | null {
 	if (!dateString) return null;
-	let cleanDate = dateString.replace(/[T+].*$/, '');
+	const cleanDate = dateString.replace(/[T+].*$/, '');
 	if (/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
 		const date = new Date(cleanDate);
 		if (!isNaN(date.getTime())) return date;
@@ -102,7 +101,7 @@ function parseTaskLine(line: string, filePath: string, lineNumber: number): Vaul
 function parseFrontmatter(content: string): { data: FrontmatterData | null; endLine: number } {
 	const lines = content.split('\n');
 	if (lines[0]?.trim() !== '---') return { data: null, endLine: 0 };
-	
+
 	let endLine = 0;
 	for (let i = 1; i < lines.length; i++) {
 		if (lines[i]?.trim() === '---') {
@@ -111,20 +110,20 @@ function parseFrontmatter(content: string): { data: FrontmatterData | null; endL
 		}
 	}
 	if (endLine === 0) return { data: null, endLine: 0 };
-	
+
 	const frontmatterLines = lines.slice(1, endLine);
 	const rawData: Record<string, unknown> = {};
 	let currentKey: string | null = null;
-	
+
 	for (const line of frontmatterLines) {
 		const trimmed = line.trim();
 		if (!trimmed || trimmed.startsWith('#')) continue;
-		
+
 		const colonMatch = trimmed.match(/^([\w-]+):\s*(.*)/);
 		if (colonMatch && colonMatch[1] && colonMatch[2] !== undefined) {
 			const key = colonMatch[1];
 			let processedValue = colonMatch[2].trim();
-			if ((processedValue.startsWith('"') && processedValue.endsWith('"')) || 
+			if ((processedValue.startsWith('"') && processedValue.endsWith('"')) ||
 				(processedValue.startsWith("'") && processedValue.endsWith("'"))) {
 				processedValue = processedValue.slice(1, -1);
 			}
@@ -134,7 +133,7 @@ function parseFrontmatter(content: string): { data: FrontmatterData | null; endL
 			else rawData[key] = processedValue;
 			currentKey = key;
 		}
-		
+
 		const arrayMatch = trimmed.match(/^-\s+(.+)/);
 		if (arrayMatch && arrayMatch[1] && currentKey) {
 			if (rawData[currentKey] === undefined) {
@@ -146,21 +145,30 @@ function parseFrontmatter(content: string): { data: FrontmatterData | null; endL
 			(rawData[currentKey] as unknown[]).push(arrayMatch[1].trim());
 		}
 	}
-	
+
 	return { data: rawData as FrontmatterData, endLine };
+}
+
+function formatFrontmatterForOriginalLine(frontmatter: FrontmatterData): string {
+	return `---\n${Object.entries(frontmatter).map(([k, v]) => {
+		if (Array.isArray(v)) {
+			return `  ${k}:\n${(v as unknown[]).map(item => `    - ${String(item)}`).join('\n')}`;
+		}
+		return `  ${k}: ${String(v)}`;
+	}).join('\n')}\n---`;
 }
 
 function parseFrontmatterTasks(content: string, filePath: string): VaultTask[] {
 	const tasks: VaultTask[] = [];
 	const { data: frontmatter, endLine } = parseFrontmatter(content);
 	if (!frontmatter) return tasks;
-	
+
 	const hasDeadline = frontmatter.scheduled || frontmatter.due;
 	if (!hasDeadline) return tasks;
-	
+
 	const fileName = filePath.split('/').pop() || filePath;
 	const baseName = fileName.replace(/\.md$/, '');
-	
+
 	let taskText = baseName;
 	const fileLines = content.split('\n');
 	for (let i = endLine + 1; i < Math.min(fileLines.length, endLine + 10); i++) {
@@ -170,15 +178,15 @@ function parseFrontmatterTasks(content: string, filePath: string): VaultTask[] {
 			break;
 		}
 	}
-	
+
 	const completedStatuses = ['done', 'completed', 'cancelled', 'archived'];
-	const status: string | undefined = frontmatter.status as string | undefined;
+	const status = frontmatter.status;
 	const statusLower = status?.toLowerCase() || '';
 	const isCompleted = completedStatuses.includes(statusLower) || !!frontmatter.completedDate;
-	
+
 	const deadlineString = frontmatter.scheduled || frontmatter.due || null;
 	const deadline = deadlineString ? parseDate(deadlineString) : null;
-	
+
 	if (deadline) {
 		tasks.push({
 			id: `${filePath}:frontmatter`,
@@ -189,25 +197,20 @@ function parseFrontmatterTasks(content: string, filePath: string): VaultTask[] {
 			completed: isCompleted,
 			deadline,
 			deadlineString,
-			originalLine: `---\n${Object.entries(frontmatter).map(([k, v]) => `  ${k}: ${v}`).join('\n')}\n---`,
+			originalLine: formatFrontmatterForOriginalLine(frontmatter),
 			source: 'frontmatter'
 		});
 	}
 	return tasks;
 }
 
-/**
- * Checks if a file path is within the target folder
- */
 function isFileInFolder(filePath: string, targetFolder: string): boolean {
 	if (!targetFolder) return true;
-	
-	// Normalize paths (remove leading/trailing slashes)
+
 	const normalizedTarget = targetFolder.replace(/^\/|\/$/g, '');
 	const normalizedPath = filePath.replace(/^\/|\/$/g, '');
-	
-	// Check if the file path starts with the target folder
-	return normalizedPath.startsWith(normalizedTarget + '/') || 
+
+	return normalizedPath.startsWith(normalizedTarget + '/') ||
 		normalizedPath === normalizedTarget;
 }
 
@@ -217,23 +220,22 @@ export async function scanVaultForTasks(
 ): Promise<VaultTask[]> {
 	const tasks: VaultTask[] = [];
 	const settings = scanSettings || { scanMode: 'whole-vault', targetFolder: '' };
-	
+
 	const files = app.vault.getMarkdownFiles();
-	
+
 	for (const file of files) {
-		// Filter by folder if in specific-folder mode
 		if (settings.scanMode === 'specific-folder' && !isFileInFolder(file.path, settings.targetFolder)) {
 			continue;
 		}
-		
+
 		try {
 			const content = await app.vault.read(file);
 			tasks.push(...parseFrontmatterTasks(content, file.path));
-			
+
 			const { endLine } = parseFrontmatter(content);
 			const startLine = endLine + 1;
 			const lines = content.split('\n');
-			
+
 			for (let i = startLine; i < lines.length; i++) {
 				const line = lines[i];
 				if (!line) continue;
@@ -244,7 +246,7 @@ export async function scanVaultForTasks(
 			console.error(`Error reading file ${file.path}:`, error);
 		}
 	}
-	
+
 	return tasks;
 }
 
@@ -254,7 +256,7 @@ export function getDueTasks(tasks: VaultTask[], date: Date): VaultTask[] {
 	const endOfDay = new Date(date);
 	endOfDay.setHours(23, 59, 59, 999);
 	const now = new Date();
-	
+
 	return tasks.filter(task => {
 		if (!task.deadline) return false;
 		if (task.completed) return false;

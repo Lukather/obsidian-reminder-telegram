@@ -1,6 +1,6 @@
-import {App, Editor, MarkdownView, Notice, Plugin} from 'obsidian';
+import {Notice, Plugin} from 'obsidian';
 import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} from "./settings";
-import {NotificationState, DEFAULT_NOTIFICATION_STATE, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification} from "./checker";
+import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification} from "./checker";
 import {ScanSettings} from "./tasks";
 
 export default class ReminderTelegramPlugin extends Plugin {
@@ -8,7 +8,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 	notificationState: NotificationState;
 	private cleanupInterval: (() => void) | null = null;
 
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.notificationState = loadNotificationState(await this.loadData());
 
@@ -20,23 +20,22 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.addCommand({
 			id: 'check-reminders',
 			name: 'Check reminders now',
-			callback: () => {
+			callback: (): void => {
 				new Notice('Checking for due tasks...');
-				this.manualCheck();
+				void this.manualCheck();
 			}
 		});
 
 		this.addCommand({
 			id: 'test-telegram-notification',
 			name: 'Send test Telegram notification',
-			callback: async () => {
+			callback: async (): Promise<void> => {
 				if (!this.settings.telegramBotToken || !this.settings.telegramChatId) {
-					new Notice('Please configure Telegram Bot Token and Chat ID in settings');
+					new Notice('Please configure Telegram bot token and chat ID in settings');
 					return;
 				}
 				new Notice('Sending test notification...');
 				const result = await sendTestNotification(
-					this.app,
 					this.settings.telegramBotToken,
 					this.settings.telegramChatId
 				);
@@ -51,18 +50,18 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.startPeriodicChecking();
 	}
 
-	onunload() {
+	onunload(): void {
 		if (this.cleanupInterval) {
 			this.cleanupInterval();
 			this.cleanupInterval = null;
 		}
 	}
 
-	async loadSettings() {
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ReminderTelegramSettings>);
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		const dataToSave = {
 			...this.settings,
 			...saveNotificationState(this.notificationState)
@@ -70,9 +69,6 @@ export default class ReminderTelegramPlugin extends Plugin {
 		await this.saveData(dataToSave);
 	}
 
-	/**
-	 * Get scan settings from plugin settings
-	 */
 	private getScanSettings(): ScanSettings {
 		return {
 			scanMode: this.settings.scanMode,
@@ -80,12 +76,9 @@ export default class ReminderTelegramPlugin extends Plugin {
 		};
 	}
 
-	/**
-	 * Manually check for due tasks
-	 */
-	async manualCheck() {
+	async manualCheck(): Promise<void> {
 		if (!this.settings.telegramBotToken || !this.settings.telegramChatId) {
-			new Notice('Please configure Telegram Bot Token and Chat ID in settings');
+			new Notice('Please configure Telegram bot token and chat ID in settings');
 			return;
 		}
 
@@ -109,10 +102,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 		}
 	}
 
-	/**
-	 * Start periodic deadline checking
-	 */
-	startPeriodicChecking() {
+	startPeriodicChecking(): void {
 		if (this.cleanupInterval) {
 			this.cleanupInterval();
 			this.cleanupInterval = null;
@@ -124,35 +114,37 @@ export default class ReminderTelegramPlugin extends Plugin {
 			this.settings.telegramChatId &&
 			this.settings.checkIntervalMinutes > 0
 		) {
-			const intervalId = window.setInterval(async () => {
-				try {
-					this.notificationState = await checkDeadlines(
-						this.app,
-						this.settings.telegramBotToken,
-						this.settings.telegramChatId,
-						this.notificationState,
-						this.getScanSettings()
-					);
-					await this.saveSettings();
-				} catch (error) {
-					console.error('Error during periodic check:', error);
-				}
-			}, this.settings.checkIntervalMinutes * 60 * 1000);
+			const intervalId = window.setInterval(
+				(): void => {
+					void (async (): Promise<void> => {
+						try {
+							this.notificationState = await checkDeadlines(
+								this.app,
+								this.settings.telegramBotToken,
+								this.settings.telegramChatId,
+								this.notificationState,
+								this.getScanSettings()
+							);
+							await this.saveSettings();
+						} catch (error) {
+							console.error('Error during periodic check:', error);
+						}
+					})();
+				},
+				this.settings.checkIntervalMinutes * 60 * 1000
+			);
 
 			this.registerInterval(intervalId);
-			
-			this.cleanupInterval = () => {
+
+			this.cleanupInterval = (): void => {
 				window.clearInterval(intervalId);
 			};
-			
-			this.manualCheck();
+
+			void this.manualCheck();
 		}
 	}
 
-	/**
-	 * Update settings and restart periodic checking if needed
-	 */
-	async updateSettings(newSettings: Partial<ReminderTelegramSettings>) {
+	async updateSettings(newSettings: Partial<ReminderTelegramSettings>): Promise<void> {
 		this.settings = { ...this.settings, ...newSettings };
 		await this.saveSettings();
 		this.startPeriodicChecking();

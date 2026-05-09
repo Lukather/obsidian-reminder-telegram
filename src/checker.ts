@@ -1,7 +1,6 @@
 import {App, Notice} from 'obsidian';
 import {VaultTask, scanVaultForTasks, getDueTasks, getTaskNotificationKey, ScanSettings} from './tasks';
 import {sendTelegramMessage, sendBulkReminders, sendTestNotification as telegramSendTestNotification, TelegramSendResult} from './telegram';
-import {ReminderTelegramSettings} from './settings';
 
 /**
  * Interface for notification tracking data
@@ -39,13 +38,22 @@ const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
 };
 
 /**
+ * Interface for persisted notification state data
+ */
+interface PersistedNotificationState {
+	notifiedTasks?: Record<string, number>;
+	lastCheck?: number;
+}
+
+/**
  * Loads notification state from plugin data
  */
-export function loadNotificationState(data: any): NotificationState {
+export function loadNotificationState(data: unknown): NotificationState {
 	if (data && typeof data === 'object') {
+		const persisted = data as PersistedNotificationState;
 		return {
-			notifiedTasks: data.notifiedTasks || {},
-			lastCheck: data.lastCheck || 0
+			notifiedTasks: persisted.notifiedTasks || {},
+			lastCheck: persisted.lastCheck || 0
 		};
 	}
 	return DEFAULT_NOTIFICATION_STATE;
@@ -54,7 +62,7 @@ export function loadNotificationState(data: any): NotificationState {
 /**
  * Saves notification state to plugin data
  */
-export function saveNotificationState(state: NotificationState): any {
+export function saveNotificationState(state: NotificationState): PersistedNotificationState {
 	return {
 		notifiedTasks: state.notifiedTasks,
 		lastCheck: state.lastCheck
@@ -116,32 +124,27 @@ export async function checkAndNotify(
 }> {
 	const opts: CheckDeadlinesOptions = { ...DEFAULT_CHECK_OPTIONS, ...options };
 	const sendResults: TelegramSendResult[] = [];
-	let notifiedTasks = 0;
-	
-	// Scan vault for tasks with scan settings
+	let notifiedTasksCount = 0;
+
 	const allTasks = await scanVaultForTasks(app, scanSettings);
 	const today = new Date();
-	
-	// Get due tasks
+
 	const dueTasks = getDueTasks(allTasks, today);
-	
-	// Filter out already notified tasks
+
 	const tasksToNotify = dueTasks.filter(task => !isAlreadyNotified(task, state));
-	
-	// Apply max tasks limit
+
 	const limitedTasks = tasksToNotify.slice(0, opts.maxTasks);
-	
-	// Send notifications
+
 	if (limitedTasks.length > 0) {
 		if (opts.sendBulk) {
 			const formattedTasks = limitedTasks.map(formatTaskForTelegram);
 			const result = await sendBulkReminders(botToken, chatId, formattedTasks);
 			sendResults.push(result);
-			
+
 			if (result.success) {
 				for (const task of limitedTasks) {
 					markAsNotified(task, state);
-					notifiedTasks++;
+					notifiedTasksCount++;
 				}
 			}
 		} else {
@@ -150,24 +153,24 @@ export async function checkAndNotify(
 				const result = await sendTelegramMessage(
 					botToken,
 					chatId,
-					`⏰ Task Reminder\n\n📝 ${formattedTask.taskName}\n📁 ${formattedTask.fileName}\n📅 ${formattedTask.deadline}`
+					`Task reminder\n\nTask: ${formattedTask.taskName}\nFile: ${formattedTask.fileName}\nDeadline: ${formattedTask.deadline}`
 				);
 				sendResults.push(result);
-				
+
 				if (result.success) {
 					markAsNotified(task, state);
-					notifiedTasks++;
+					notifiedTasksCount++;
 				} else {
 					console.error(`Failed to send notification for task ${task.id}:`, result.error);
 				}
 			}
 		}
 	}
-	
+
 	return {
 		totalTasks: allTasks.length,
 		dueTasks: dueTasks.length,
-		notifiedTasks,
+		notifiedTasks: notifiedTasksCount,
 		sendResults,
 		state
 	};
@@ -189,11 +192,11 @@ export async function checkDeadlines(
 			checkOverdue: true,
 			sendBulk: true
 		}, scanSettings);
-		
+
 		if (result.notifiedTasks > 0) {
 			new Notice(`Sent ${result.notifiedTasks} reminder(s) to Telegram`);
 		}
-		
+
 		return result.state;
 	} catch (error) {
 		console.error('Error checking deadlines:', error);
@@ -206,7 +209,6 @@ export async function checkDeadlines(
  * Sends a test notification to verify configuration
  */
 export async function sendTestNotification(
-	app: App,
 	botToken: string,
 	chatId: string
 ): Promise<TelegramSendResult> {
