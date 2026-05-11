@@ -1,8 +1,21 @@
-/*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
 */
+
+/* Status bar icon styling */
+.reminder-telegram-icon {
+    margin-right: 4px;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+/* Status bar item hover effect */
+.status-bar-item:hover {
+    background-color: var(--background-modifier-hover);
+    border-radius: 4px;
+}
