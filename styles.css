@@ -1,10 +1,10 @@
-/*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
 */
 
 /* Status bar icon styling */
@@ -18,4 +18,11 @@ If your plugin does not need CSS, delete this file.
 .status-bar-item:hover {
     background-color: var(--background-modifier-hover);
     border-radius: 4px;
-}
+}
+
+/* Template textarea styling */
+.template-textarea textarea {
+    min-height: 100px;
+    font-family: var(--font-mono);
+    resize: vertical;
+}

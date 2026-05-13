@@ -19,6 +19,8 @@ Whether you use YAML frontmatter for structured task management or prefer inline
 - **🚫 Duplicate Prevention**: Smart tracking to avoid repeated notifications
 - **🔔 Interactive Status Bar**: Click the status bar icon to manually check for due tasks
 - **⏰ Status Updates**: See when the last check was performed in the status bar
+- **🎨 Customizable Messages**: Personalize Telegram notification text with templates and variables
+- **📝 Markdown Support**: Enable Telegram Markdown formatting for rich text notifications
 
 ## Installation
 
@@ -114,6 +116,55 @@ To use a specific folder:
 - **Check reminders now**: Manually trigger a deadline check
 - **Send test Telegram notification**: Verify your Telegram configuration
 
+### Message Template Customization
+
+Customize the content and format of your Telegram notifications:
+
+#### Available Template Variables
+
+**Bulk Message Template** (for multiple tasks):
+- `{count}`: Number of due tasks
+- `{tasks}`: List of formatted tasks
+
+**Individual Message Template** (for single tasks):
+- `{taskName}`: Task name/text
+- `{fileName}`: File name containing the task
+- `{deadline}`: Task deadline date
+- `{filePath}`: Full path to the file
+- `{taskId}`: Unique task identifier
+
+#### Example Templates
+
+**Bulk Notification:**
+```
+📋 You have {count} pending tasks due today:
+
+{tasks}
+
+Please check your Obsidian vault!
+```
+
+**Individual Notification:**
+```
+🔔 REMINDER: {taskName}
+📁 File: {fileName}
+📅 Due: {deadline}
+```
+
+**Test Notification:**
+```
+✅ Reminder Telegram plugin is working!
+This is a test from your Obsidian vault.
+```
+
+#### Markdown Formatting
+
+Enable **Markdown formatting** in settings to use Telegram's Markdown syntax for rich text formatting:
+- `*bold*` for **bold** text
+- `_italic_` for *italic* text
+- `` `code` `` for `monospace` text
+- `[link](https://example.com)` for links
+
 ## Settings
 
 | Setting | Type | Default | Description |
@@ -124,6 +175,10 @@ To use a specific folder:
 | Check Interval (minutes) | number | `30` | How often to check for due tasks |
 | Scan Mode | dropdown | `whole-vault` | Scan entire vault or specific folder |
 | Target Folder | string | `''` | Folder to scan (when Scan Mode is "Specific Folder") |
+| Bulk Message Template | string | `"You have {count} task(s) due:\n\n{tasks}"` | Template for multiple tasks |
+| Individual Message Template | string | `"Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}"` | Template for single tasks |
+| Test Message Template | string | `"Test notification from reminder telegram plugin"` | Template for test notifications |
+| Use Markdown Formatting | boolean | `false` | Enable Telegram Markdown formatting |
 
 ## Notification Content
 
@@ -168,7 +223,7 @@ Completed tasks (`status: done` or `[x]`) are skipped.
 Here are some planned enhancements for future versions:
 
 - [ ] **Advanced filters**: Exclude specific folders or patterns from the scan
-- [ ] **Message templates**: Customization of Telegram notification text
+- [ ] **Message templates**: Customization of Telegram notification text ✅ **IMPLEMENTED**
 - [ ] **Timezone aware**: Explicit time zone management for precise deadlines
 - [ ] **Recurring support**: Recognition of recurring tasks (daily, weekly)
 - [ ] **Snooze / Postpone**: Inline interaction on Telegram to postpone a task
@@ -213,3 +268,52 @@ This plugin is licensed under the GNU General Public License version 3 (GPLv3). 
 
 - Inspired by the Obsidian Tasks plugin
 - Built with Obsidian Plugin API
+
+## Message Template Customization
+
+Customize the content and format of your Telegram notifications:
+
+### Available Template Variables
+
+**Bulk Message Template** (for multiple tasks):
+- `{count}`: Number of due tasks
+- `{tasks}`: List of formatted tasks
+
+**Individual Message Template** (for single tasks):
+- `{taskName}`: Task name/text
+- `{fileName}`: File name containing the task
+- `{deadline}`: Task deadline date
+- `{filePath}`: Full path to the file
+- `{taskId}`: Unique task identifier
+
+### Example Templates
+
+**Bulk Notification:**
+```
+📋 You have {count} pending tasks due today:
+
+{tasks}
+
+Please check your Obsidian vault!
+```
+
+**Individual Notification:**
+```
+🔔 REMINDER: {taskName}
+📁 File: {fileName}
+📅 Due: {deadline}
+```
+
+**Test Notification:**
+```
+✅ Reminder Telegram plugin is working!
+This is a test from your Obsidian vault.
+```
+
+### Markdown Formatting
+
+Enable **Markdown formatting** in settings to use Telegram's Markdown syntax for rich text formatting:
+- `*bold*` for **bold** text
+- `_italic_` for *italic* text
+- `` `code` `` for `monospace` text
+- `[link](https://example.com)` for links

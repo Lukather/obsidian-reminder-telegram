@@ -86,7 +86,11 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 					this.settings.telegramBotToken,
 
-					this.settings.telegramChatId
+					this.settings.telegramChatId,
+
+					this.settings.testMessageTemplate,
+
+					this.settings.useMarkdownFormatting
 
 				);
 
@@ -109,7 +113,6 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.startPeriodicChecking();
 
 	}
-
 
 
 	onunload(): void {
@@ -198,7 +201,13 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 				this.notificationState,
 
-				this.getScanSettings()
+				this.getScanSettings(),
+
+				this.settings.bulkMessageTemplate,
+
+				this.settings.individualMessageTemplate,
+
+				this.settings.useMarkdownFormatting
 
 			);
 
@@ -268,7 +277,13 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 								this.notificationState,
 
-								this.getScanSettings()
+								this.getScanSettings(),
+
+								this.settings.bulkMessageTemplate,
+
+								this.settings.individualMessageTemplate,
+
+								this.settings.useMarkdownFormatting
 
 							);
 
