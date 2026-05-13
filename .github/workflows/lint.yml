@@ -36,7 +36,7 @@ jobs:
               uses: actions/attest-build.provenance@v1
               with:
                   subject-name: main.js
-                  subject-path: ./dist/main.js
+                  subject-path: main.js
                   push-to-registry: false
 
             # Upload the asset to the release (if applicable)
