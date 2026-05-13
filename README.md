@@ -5,6 +5,8 @@
 
 Never miss a deadline again! Get Telegram notifications automatically when your Obsidian tasks are due.
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Lukather/obsidian-reminder-telegram/badge)](https://scorecard.dev/viewer/?uri=github.com/{owner}/{repo})
+
 ## Why This Plugin?
 
 Do you manage tasks in Obsidian but sometimes forget to check them? This plugin bridges the gap between your note-taking and your daily workflow by sending timely Telegram reminders directly to your phone or desktop.
