@@ -33,20 +33,17 @@ jobs:
             # Only generate attestation for releases
             - name: Generate provenance attestation
               if: github.event_name == 'release'
-              uses: actions/attest-build.provenance@v1
+              uses: actions/attest-build-provenance@v1
               with:
                   subject-name: main.js
                   subject-path: main.js
-                  push-to-registry: false
 
             # Upload the asset to the release (if applicable)
             - name: Upload release asset
               if: github.event_name == 'release'
-              uses: actions/upload-release-asset@v2
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  upload_url: ${{ github.event.release.upload_url }}
-                  asset_path: ./dist/main.js
-                  asset_name: main.js
-                  asset_content_type: application/javascript
+              uses: softprops/action-gh-release@v2
+             with:
+               files: main.js
+               tag_name: ${{ github.ref_name }}
+            env:
+              GITHUB_TOKEN: %{{ secrets.GITHUB_TOKEN }}
