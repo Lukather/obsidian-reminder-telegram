@@ -1,4 +1,7 @@
-# Obsidian Reminder Telegram
+<img width="1432" height="736" alt="Obsidian_plugin" src="https://github.com/user-attachments/assets/62045f5e-c6b7-4d82-b9d6-3d254ae64e03" />
+
+
+# Reminder Telegram
 
 Never miss a deadline again! Get Telegram notifications automatically when your Obsidian tasks are due.
 
