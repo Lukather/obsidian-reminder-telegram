@@ -1,19 +1,19 @@
-{
-
-	"id": "reminder-telegram",
-
-	"name": "Reminder Telegram",
-
-	"version": "1.0.0",
-
-	"minAppVersion": "1.4.0",
-
-	"description": "Sends Telegram notifications when your tasks reach their deadline.",
-
-	"author": "Lorenzo Strambi",
-
-	"authorUrl": "https://news.ilgiocatore.net",
-
-	"isDesktopOnly": false
-
-}
+{
+
+	"id": "reminder-telegram",
+
+	"name": "Reminder Telegram",
+
+	"version": "1.0.1",
+
+	"minAppVersion": "1.4.0",
+
+	"description": "Sends Telegram notifications when your tasks reach their deadline. Features customizable message templates and Markdown formatting.",
+
+	"author": "Lorenzo Strambi",
+
+	"authorUrl": "https://news.ilgiocatore.net",
+
+	"isDesktopOnly": false
+
+}
