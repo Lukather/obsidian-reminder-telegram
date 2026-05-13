@@ -4,6 +4,10 @@ name: Node.js build
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: write
+  id-token: write
+
 on:
   push:
   pull_request:
