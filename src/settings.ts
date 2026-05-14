@@ -190,14 +190,14 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		botSection.createDiv({ cls: 'reminder-telegram-setup-guide-heading', text: 'Create a Telegram bot' });
 		const botSteps = botSection.createEl('ol', { cls: 'reminder-telegram-setup-guide-list' });
 		const botLi1 = botSteps.createEl('li');
-		botLi1.append(document.createTextNode('Open Telegram and search for '));
+		botLi1.append(container.ownerDocument.createTextNode('Open Telegram and search for '));
 		const botFatherLink = botLi1.createEl('a', { text: '@botfather', href: 'https://t.me/botfather' });
 		botFatherLink.setAttr('target', '_blank');
 		botFatherLink.setAttr('rel', 'noopener noreferrer');
 		const botLi2 = botSteps.createEl('li');
-		botLi2.append(document.createTextNode('Send the '));
+		botLi2.append(container.ownerDocument.createTextNode('Send the '));
 		botLi2.createEl('code', { text: '/newbot' });
-		botLi2.append(document.createTextNode(' command.'));
+		botLi2.append(container.ownerDocument.createTextNode(' command.'));
 		botSteps.createEl('li', {
 			text: 'Follow the prompts to name your bot, then copy the bot token.'
 		});
@@ -206,14 +206,14 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		chatSection.createDiv({ cls: 'reminder-telegram-setup-guide-heading', text: 'Get your chat ID' });
 		const chatSteps = chatSection.createEl('ol', { cls: 'reminder-telegram-setup-guide-list' });
 		const chatLi1 = chatSteps.createEl('li');
-		chatLi1.append(document.createTextNode('Open Telegram and search for '));
+		chatLi1.append(container.ownerDocument.createTextNode('Open Telegram and search for '));
 		const userInfoLink = chatLi1.createEl('a', { text: '@userinfobot', href: 'https://t.me/userinfobot' });
 		userInfoLink.setAttr('target', '_blank');
 		userInfoLink.setAttr('rel', 'noopener noreferrer');
 		const chatLi2 = chatSteps.createEl('li');
-		chatLi2.append(document.createTextNode('Send the '));
+		chatLi2.append(container.ownerDocument.createTextNode('Send the '));
 		chatLi2.createEl('code', { text: '/start' });
-		chatLi2.append(document.createTextNode(' command.'));
+		chatLi2.append(container.ownerDocument.createTextNode(' command.'));
 		chatSteps.createEl('li', { text: 'The bot replies with your chat ID.' });
 	}
 
