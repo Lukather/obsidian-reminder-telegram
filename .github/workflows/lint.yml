@@ -55,11 +55,17 @@ jobs:
       - run: npm ci
       - run: npm run build --if-present
 
-      - name: Generate provenance attestation
+      - name: Generate provenance attestation for main.js
         uses: actions/attest-build-provenance@v4
         with:
           subject-name: main.js
           subject-path: main.js
+
+      - name: Generate provenance attestation for style.css
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: style.css
+          subject-path: style.css
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v3
