@@ -33,6 +33,15 @@ export interface TelegramSendResult {
 	error?: string;
 }
 
+/** Fields available for per-task templates (individual and bulk line templates). */
+export interface TelegramTaskTemplateFields {
+	taskName: string;
+	fileName: string;
+	deadline: string;
+	filePath: string;
+	taskId: string;
+}
+
 /**
  * Sends a message via Telegram Bot API
  */
@@ -123,14 +132,16 @@ export async function sendTaskReminder(
 	fileName: string,
 	deadline: string,
 	template: string = 'Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}',
-	useMarkdown: boolean = false
+	useMarkdown: boolean = false,
+	filePath: string = '',
+	taskId: string = ''
 ): Promise<TelegramSendResult> {
 	const message = renderTemplate(template, {
 		taskName,
 		fileName,
 		deadline,
-		filePath: '', // Can be added if needed
-		taskId: '' // Can be added if needed
+		filePath,
+		taskId
 	});
 	return sendTelegramMessage(
 		botToken,
@@ -146,7 +157,7 @@ export async function sendTaskReminder(
 export async function sendBulkReminders(
 	botToken: string,
 	chatId: string,
-	tasks: Array<{taskName: string; fileName: string; deadline: string}>,
+	tasks: TelegramTaskTemplateFields[],
 	bulkTemplate: string = 'You have {count} task(s) due:\n\n{tasks}',
 	individualTemplate: string = 'Task: {taskName} ({deadline}) - {fileName}',
 	useMarkdown: boolean = false
@@ -161,8 +172,8 @@ export async function sendBulkReminders(
 			taskName: task.taskName,
 			fileName: task.fileName,
 			deadline: task.deadline,
-			filePath: '', // Can be added if needed
-			taskId: '' // Can be added if needed
+			filePath: task.filePath,
+			taskId: task.taskId
 		});
 	});
 
