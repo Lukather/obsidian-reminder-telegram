@@ -41,23 +41,29 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Telegram bot token')
 			.setDesc('Your Telegram bot token from @botfather')
-			.addText(text => text
-				.setPlaceholder('123456789:abc-def123456789')
-				.setValue(this.plugin.settings.telegramBotToken)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.telegramBotToken = value;
-					await this.plugin.saveSettings();
-				}));
+			.addText(text => {
+				text
+					.setPlaceholder('123456789:abc-def123456789')
+					.setValue(this.plugin.settings.telegramBotToken)
+					.onChange(async (value): Promise<void> => {
+						this.plugin.settings.telegramBotToken = value;
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.type = 'password';
+			});
 		new Setting(containerEl)
 			.setName('Telegram chat ID')
 			.setDesc('Your chat ID from @userinfobot')
-			.addText(text => text
-				.setPlaceholder('123456789')
-				.setValue(this.plugin.settings.telegramChatId)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.telegramChatId = value;
-					await this.plugin.saveSettings();
-				}));
+			.addText(text => {
+				text
+					.setPlaceholder('123456789')
+					.setValue(this.plugin.settings.telegramChatId)
+					.onChange(async (value): Promise<void> => {
+						this.plugin.settings.telegramChatId = value;
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.type = 'password';
+			});
 		new Setting(containerEl)
 			.setName('Notifications enabled')
 			.setDesc('Enable or disable Telegram notifications')
