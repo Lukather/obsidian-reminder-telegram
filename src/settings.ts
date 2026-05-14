@@ -13,6 +13,8 @@ export interface ReminderTelegramSettings {
 	individualMessageTemplate: string;
 	testMessageTemplate: string;
 	useMarkdownFormatting: boolean;
+	/** Maximum due tasks to notify per check run (minimum 1). */
+	maxTasksPerCheck: number;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -25,7 +27,8 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	bulkMessageTemplate: "You have {count} task(s) due:\n\n{tasks}",
 	individualMessageTemplate: "Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}",
 	testMessageTemplate: "Test notification from reminder Telegram plugin",
-	useMarkdownFormatting: false
+	useMarkdownFormatting: false,
+	maxTasksPerCheck: 10
 };
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
@@ -89,6 +92,17 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					this.plugin.settings.checkIntervalMinutes = numValue;
 					await this.plugin.saveSettings();
 				}));
+		new Setting(containerEl)
+			.setName('Max tasks per check')
+			.setDesc('Maximum number of due tasks to include in each run. Additional due tasks stay queued for the next check.')
+			.addText(text => text
+				.setPlaceholder('10')
+				.setValue(this.plugin.settings.maxTasksPerCheck.toString())
+				.onChange(async (value): Promise<void> => {
+					const n = parseInt(value, 10);
+					this.plugin.settings.maxTasksPerCheck = Number.isFinite(n) && n >= 1 ? n : DEFAULT_SETTINGS.maxTasksPerCheck;
+					await this.plugin.saveSettings();
+				}));
 		containerEl.createEl('hr');
 		new Setting(containerEl)
 			.setName('Scan mode')
@@ -123,7 +137,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			.setHeading();
 		const bulkTemplateSetting = new Setting(containerEl)
 			.setName('Bulk message template')
-			.setDesc('Template for multiple tasks. Available variables: {count}, {tasks}');
+			.setDesc('Template for multiple tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual template below.');
 		bulkTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
 		bulkTemplateSetting.addTextArea(text => {
 			text
@@ -137,7 +151,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		});
 		const individualTemplateSetting = new Setting(containerEl)
 			.setName('Individual message template')
-			.setDesc('Template for single tasks. Available variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
+			.setDesc('Template for a single task and for each line in a bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
 		individualTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
 		individualTemplateSetting.addTextArea(text => {
 			text
