@@ -12,6 +12,9 @@ node_modules
 # They should be uploaded to GitHub releases instead.
 main.js
 
+# Exclude AI stuff I don't need
+CLAUDE.md
+
 # Exclude sourcemaps
 *.map
 

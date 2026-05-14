@@ -39,8 +39,13 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		const {containerEl} = this;
 		containerEl.empty();
 		new Setting(containerEl)
+			.setName('Telegram')
+			.setDesc('Connect this plugin to your bot and your chat.')
+			.setHeading();
+		this.renderTelegramSetupGuide(containerEl);
+		new Setting(containerEl)
 			.setName('Telegram bot token')
-			.setDesc('Your Telegram bot token from @botfather')
+			.setDesc('Paste the token you get when your new bot is ready.')
 			.addText(text => {
 				text
 					.setPlaceholder('123456789:abc-def123456789')
@@ -53,7 +58,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			});
 		new Setting(containerEl)
 			.setName('Telegram chat ID')
-			.setDesc('Your chat ID from @userinfobot')
+			.setDesc('Paste the numeric chat ID userinfobot replies with.')
 			.addText(text => {
 				text
 					.setPlaceholder('123456789')
@@ -116,26 +121,34 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			.setName('Message templates')
 			.setDesc('Customize Telegram notification messages')
 			.setHeading();
-		new Setting(containerEl)
+		const bulkTemplateSetting = new Setting(containerEl)
 			.setName('Bulk message template')
-			.setDesc('Template for multiple tasks. Available variables: {count}, {tasks}')
-			.addTextArea(text => text
+			.setDesc('Template for multiple tasks. Available variables: {count}, {tasks}');
+		bulkTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
+		bulkTemplateSetting.addTextArea(text => {
+			text
 				.setPlaceholder('You have {count} task(s) due:\n\n{tasks}')
 				.setValue(this.plugin.settings.bulkMessageTemplate)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.bulkMessageTemplate = value;
 					await this.plugin.saveSettings();
-				}));
-		new Setting(containerEl)
+				});
+			text.inputEl.addClass('reminder-telegram-template-textarea');
+		});
+		const individualTemplateSetting = new Setting(containerEl)
 			.setName('Individual message template')
-			.setDesc('Template for single tasks. Available variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}')
-			.addTextArea(text => text
+			.setDesc('Template for single tasks. Available variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
+		individualTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
+		individualTemplateSetting.addTextArea(text => {
+			text
 				.setPlaceholder('Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}')
 				.setValue(this.plugin.settings.individualMessageTemplate)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.individualMessageTemplate = value;
 					await this.plugin.saveSettings();
-				}));
+				});
+			text.inputEl.addClass('reminder-telegram-template-textarea');
+		});
 		new Setting(containerEl)
 			.setName('Test message template')
 			.setDesc('Template for test notifications.')
@@ -164,6 +177,44 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.onClick(async (): Promise<void> => {
 					await this.sendTestNotification();
 				}));
+	}
+
+	private renderTelegramSetupGuide(container: HTMLElement): void {
+		const wrap = container.createDiv({ cls: 'reminder-telegram-setup-guide' });
+		wrap.createDiv({
+			cls: 'reminder-telegram-setup-guide-intro',
+			text: 'Follow these steps once to obtain the values below.'
+		});
+
+		const botSection = wrap.createDiv({ cls: 'reminder-telegram-setup-guide-section' });
+		botSection.createDiv({ cls: 'reminder-telegram-setup-guide-heading', text: 'Create a Telegram bot' });
+		const botSteps = botSection.createEl('ol', { cls: 'reminder-telegram-setup-guide-list' });
+		const botLi1 = botSteps.createEl('li');
+		botLi1.append(document.createTextNode('Open Telegram and search for '));
+		const botFatherLink = botLi1.createEl('a', { text: '@botfather', href: 'https://t.me/botfather' });
+		botFatherLink.setAttr('target', '_blank');
+		botFatherLink.setAttr('rel', 'noopener noreferrer');
+		const botLi2 = botSteps.createEl('li');
+		botLi2.append(document.createTextNode('Send the '));
+		botLi2.createEl('code', { text: '/newbot' });
+		botLi2.append(document.createTextNode(' command.'));
+		botSteps.createEl('li', {
+			text: 'Follow the prompts to name your bot, then copy the bot token.'
+		});
+
+		const chatSection = wrap.createDiv({ cls: 'reminder-telegram-setup-guide-section' });
+		chatSection.createDiv({ cls: 'reminder-telegram-setup-guide-heading', text: 'Get your chat ID' });
+		const chatSteps = chatSection.createEl('ol', { cls: 'reminder-telegram-setup-guide-list' });
+		const chatLi1 = chatSteps.createEl('li');
+		chatLi1.append(document.createTextNode('Open Telegram and search for '));
+		const userInfoLink = chatLi1.createEl('a', { text: '@userinfobot', href: 'https://t.me/userinfobot' });
+		userInfoLink.setAttr('target', '_blank');
+		userInfoLink.setAttr('rel', 'noopener noreferrer');
+		const chatLi2 = chatSteps.createEl('li');
+		chatLi2.append(document.createTextNode('Send the '));
+		chatLi2.createEl('code', { text: '/start' });
+		chatLi2.append(document.createTextNode(' command.'));
+		chatSteps.createEl('li', { text: 'The bot replies with your chat ID.' });
 	}
 
 	private async sendTestNotification(): Promise<void> {
