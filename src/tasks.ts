@@ -317,17 +317,25 @@ export function filterDueTasksByCheckFlags(
 }
 
 
+/**
+ * Tasks due after today within the next N calendar days (excludes today and overdue).
+ * daysAhead=1 notifies only tasks due tomorrow; daysAhead=7 covers tomorrow through seven days out.
+ */
 export function getUpcomingTasks(tasks: VaultTask[], date: Date, daysAhead: number = 7): VaultTask[] {
-	const now = new Date(date);
-	now.setHours(0, 0, 0, 0);
-	const futureDate = new Date(now);
-	futureDate.setDate(futureDate.getDate() + daysAhead);
-	futureDate.setHours(23, 59, 59, 999);
+	if (daysAhead <= 0) {
+		return [];
+	}
+	const { startOfDay } = calendarDayBounds(date);
+	const startOfTomorrow = new Date(startOfDay);
+	startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+	const endDate = new Date(startOfDay);
+	endDate.setDate(endDate.getDate() + daysAhead);
+	endDate.setHours(23, 59, 59, 999);
 	return tasks.filter(task => {
 		if (!task.deadline) return false;
 		if (task.completed) return false;
 		const deadline = task.deadline;
-		return deadline >= now && deadline <= futureDate;
+		return deadline >= startOfTomorrow && deadline <= endDate;
 	});
 }
 

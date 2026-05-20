@@ -15,6 +15,10 @@ export interface ReminderTelegramSettings {
 	useMarkdownFormatting: boolean;
 	/** Maximum due tasks to notify per check run (minimum 1). */
 	maxTasksPerCheck: number;
+	/** Number of days ahead to check for upcoming tasks (0 to disable). */
+	upcomingRemindersDaysAhead: number;
+	/** Enable notifications for upcoming tasks. */
+	upcomingRemindersEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -28,7 +32,9 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	individualMessageTemplate: "Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}",
 	testMessageTemplate: "Test notification from reminder Telegram plugin",
 	useMarkdownFormatting: false,
-	maxTasksPerCheck: 10
+	maxTasksPerCheck: 10,
+	upcomingRemindersDaysAhead: 1,
+	upcomingRemindersEnabled: true
 };
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
@@ -94,13 +100,35 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				}));
 		new Setting(containerEl)
 			.setName('Max tasks per check')
-			.setDesc('Maximum number of due tasks to include in each run. Additional due tasks stay queued for the next check.')
+			.setDesc('Maximum number of due and upcoming tasks to notify per run. Additional tasks stay queued for the next check.')
 			.addText(text => text
 				.setPlaceholder('10')
 				.setValue(this.plugin.settings.maxTasksPerCheck.toString())
 				.onChange(async (value): Promise<void> => {
 					const n = parseInt(value, 10);
 					this.plugin.settings.maxTasksPerCheck = Number.isFinite(n) && n >= 1 ? n : DEFAULT_SETTINGS.maxTasksPerCheck;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Upcoming reminders')
+			.setDesc('Notify for tasks due after today within the days-ahead range below. Due and overdue tasks are always checked separately.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.upcomingRemindersEnabled)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.upcomingRemindersEnabled = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Days ahead for upcoming')
+			.setDesc('How many calendar days ahead to include (1 = tomorrow only; 0 disables upcoming even when the toggle is on).')
+			.addText(text => text
+				.setPlaceholder('1')
+				.setValue(this.plugin.settings.upcomingRemindersDaysAhead.toString())
+				.onChange(async (value): Promise<void> => {
+					const n = parseInt(value, 10);
+					this.plugin.settings.upcomingRemindersDaysAhead = Number.isFinite(n) && n >= 0 ? n : DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
 					await this.plugin.saveSettings();
 				}));
 		containerEl.createEl('hr');
