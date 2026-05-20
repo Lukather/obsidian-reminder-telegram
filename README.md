@@ -20,12 +20,13 @@ Whether you use YAML frontmatter for structured task management or prefer inline
 - **🗂️ Flexible Scanning**: Choose to scan your entire vault or a specific folder
 - **📱 Telegram Integration**: Instant notifications via Telegram Bot API
 - **⏱️ Configurable Intervals**: Check for due tasks every 30 minutes (or your preferred interval)
-- **📦 Bulk Notifications**: Get all due tasks in a single message
+- **📦 Multi-task Digest**: Get all due tasks in a single organized message
 - **🚫 Duplicate Prevention**: Smart tracking to avoid repeated notifications
 - **🔔 Interactive Status Bar**: Click the status bar icon to manually check for due tasks
 - **⏰ Status Updates**: See when the last check was performed in the status bar
 - **🎨 Customizable Messages**: Personalize Telegram notification text with templates and variables
 - **📝 Markdown Support**: Enable Telegram Markdown formatting for rich text notifications
+- **✨ Enhanced UX**: Clickable variable chips, character counters, and live preview
 
 ## Installation
 
@@ -123,13 +124,13 @@ To use a specific folder:
 
 ### Message Template Customization
 
-Customize the content and format of your Telegram notifications:
+Customize the content and format of your Telegram notifications with an enhanced editing experience:
 
-#### Available Template Variables
+### Available Template Variables
 
-**Bulk Message Template** (for multiple tasks):
+**Multi-task Digest Template** (for multiple tasks):
 - `{count}`: Number of due tasks
-- `{tasks}`: List of formatted tasks
+- `{tasks}`: List of formatted tasks (each using the individual template)
 
 **Individual Message Template** (for single tasks):
 - `{taskName}`: Task name/text
@@ -137,6 +138,34 @@ Customize the content and format of your Telegram notifications:
 - `{deadline}`: Task deadline date
 - `{filePath}`: Full path to the file
 - `{taskId}`: Unique task identifier
+
+### Enhanced Template Editing
+
+The plugin now includes powerful UX improvements for template customization:
+
+#### Clickable Variable Chips
+Instead of manually typing variables, click on the available variable chips to insert them at your cursor position:
+- Multi-task digest: `{count}`, `{tasks}` chips
+- Individual template: `{taskName}`, `{fileName}`, `{deadline}`, `{filePath}`, `{taskId}` chips
+
+#### Character Counter
+Telegram has a 4096 character limit for messages. The character counter shows:
+- Current character count vs limit
+- Percentage used
+- Warning when approaching 80% of the limit
+
+#### Live Preview
+Enable the "Live preview" setting to see real-time rendering of your templates with sample data:
+- Individual task preview with example content
+- Multi-task digest preview with multiple sample tasks
+- Test notification preview
+
+#### Markdown Examples
+The Markdown formatting toggle now includes examples:
+- `*bold*` for **bold** text
+- `_italic_` for *italic* text
+- `` `code` `` for `monospace` text
+- `[link](https://example.com)` for links
 
 #### Example Templates
 
@@ -180,10 +209,11 @@ Enable **Markdown formatting** in settings to use Telegram's Markdown syntax for
 | Check Interval (minutes) | number | `30` | How often to check for due tasks |
 | Scan Mode | dropdown | `whole-vault` | Scan entire vault or specific folder |
 | Target Folder | string | `''` | Folder to scan (when Scan Mode is "Specific Folder") |
-| Bulk Message Template | string | `"You have {count} task(s) due:\n\n{tasks}"` | Template for multiple tasks |
+| Multi-task Digest Template | string | `"You have {count} task(s) due:\n\n{tasks}"` | Template for multiple tasks |
 | Individual Message Template | string | `"Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}"` | Template for single tasks |
 | Test Message Template | string | `"Test notification from reminder telegram plugin"` | Template for test notifications |
-| Use Markdown Formatting | boolean | `false` | Enable Telegram Markdown formatting |
+| Live Preview | boolean | `true` | Show real-time preview of templates |
+| Use Markdown Formatting | boolean | `false` | Enable Telegram Markdown formatting (examples: *bold*, _italic_) |
 
 ## Notification Content
 
@@ -227,8 +257,9 @@ Completed tasks (`status: done` or `[x]`) are skipped.
 
 Here are some planned enhancements for future versions:
 
+- [x] **Message templates**: Customization of Telegram notification text ✅ **IMPLEMENTED**
+- [x] **Enhanced UX**: Clickable variables, character counters, and live preview ✅ **IMPLEMENTED**
 - [ ] **Advanced filters**: Exclude specific folders or patterns from the scan
-- [ ] **Message templates**: Customization of Telegram notification text ✅ **IMPLEMENTED**
 - [ ] **Timezone aware**: Explicit time zone management for precise deadlines
 - [ ] **Recurring support**: Recognition of recurring tasks (daily, weekly)
 - [ ] **Snooze / Postpone**: Inline interaction on Telegram to postpone a task
@@ -274,51 +305,4 @@ This plugin is licensed under the GNU General Public License version 3 (GPLv3). 
 - Inspired by the Obsidian Tasks plugin
 - Built with Obsidian Plugin API
 
-## Message Template Customization
 
-Customize the content and format of your Telegram notifications:
-
-### Available Template Variables
-
-**Bulk Message Template** (for multiple tasks):
-- `{count}`: Number of due tasks
-- `{tasks}`: List of formatted tasks
-
-**Individual Message Template** (for single tasks):
-- `{taskName}`: Task name/text
-- `{fileName}`: File name containing the task
-- `{deadline}`: Task deadline date
-- `{filePath}`: Full path to the file
-- `{taskId}`: Unique task identifier
-
-### Example Templates
-
-**Bulk Notification:**
-```
-📋 You have {count} pending tasks due today:
-
-{tasks}
-
-Please check your Obsidian vault!
-```
-
-**Individual Notification:**
-```
-🔔 REMINDER: {taskName}
-📁 File: {fileName}
-📅 Due: {deadline}
-```
-
-**Test Notification:**
-```
-✅ Reminder Telegram plugin is working!
-This is a test from your Obsidian vault.
-```
-
-### Markdown Formatting
-
-Enable **Markdown formatting** in settings to use Telegram's Markdown syntax for rich text formatting:
-- `*bold*` for **bold** text
-- `_italic_` for *italic* text
-- `` `code` `` for `monospace` text
-- `[link](https://example.com)` for links
