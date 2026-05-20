@@ -42,6 +42,11 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
 	plugin: ReminderTelegramPlugin;
+	private previewElements?: {
+		individual: HTMLElement;
+		bulk: HTMLElement;
+		test: HTMLElement;
+	};
 	constructor(app: App, plugin: ReminderTelegramPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -328,8 +333,8 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				text: `{${variable}}`
 			});
 			chip.onclick = () => {
-				const textarea = container.querySelector('textarea.reminder-telegram-template-textarea') as HTMLTextAreaElement | null;
-				if (textarea) {
+				const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
+				if (textarea instanceof HTMLTextAreaElement) {
 					const start = textarea.selectionStart;
 					const end = textarea.selectionEnd;
 					const value = textarea.value;
@@ -353,8 +358,8 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		const counter = counterContainer.createSpan({cls: 'reminder-telegram-character-count'});
 		
 		const updateCounter = () => {
-			const textarea = container.querySelector('textarea.reminder-telegram-template-textarea') as HTMLTextAreaElement | null;
-			if (textarea) {
+			const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
+			if (textarea instanceof HTMLTextAreaElement) {
 				const length = textarea.value.length;
 				const maxLength = 4096; // Telegram message limit
 				const percentage = Math.min(100, Math.round((length / maxLength) * 100));
@@ -410,7 +415,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		testPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
 		
 		// Store references for updates
-		(this as any).previewElements = {
+		this.previewElements = {
 			individual: individualPreviewContent,
 			bulk: bulkPreviewContent,
 			test: testPreviewContent
@@ -424,11 +429,11 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 	 * Updates all template previews
 	 */
 	private updateTemplatePreviews(): void {
-		if (!this.plugin.settings.livePreviewEnabled || !(this as any).previewElements) {
+		if (!this.plugin.settings.livePreviewEnabled || !this.previewElements) {
 			return;
 		}
 		
-		const elements = (this as any).previewElements;
+		const elements = this.previewElements;
 		
 		// Individual template preview
 		try {
