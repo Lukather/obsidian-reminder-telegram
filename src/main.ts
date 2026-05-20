@@ -83,6 +83,9 @@ export default class ReminderTelegramPlugin extends Plugin {
 		if (typeof this.settings.upcomingRemindersEnabled !== 'boolean') {
 			this.settings.upcomingRemindersEnabled = DEFAULT_SETTINGS.upcomingRemindersEnabled;
 		}
+		if (typeof this.settings.livePreviewEnabled !== 'boolean') {
+			this.settings.livePreviewEnabled = DEFAULT_SETTINGS.livePreviewEnabled;
+		}
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {

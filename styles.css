@@ -3,40 +3,193 @@
 This CSS file will be included with your plugin, and
 available in the app when your plugin is enabled.
 
-If your plugin does not need CSS, delete this file.
-
 */
 
-/* Status bar icon styling */
+/* Status bar icon */
 .reminder-telegram-icon {
     margin-right: 4px;
     font-size: 14px;
     vertical-align: middle;
 }
 
-/* Status bar item hover effect */
 .status-bar-item:hover {
     background-color: var(--background-modifier-hover);
     border-radius: 4px;
 }
 
-/* Message template text areas: full control width and readable height */
+/* ---------------------------------------------------------------
+   Message template settings
+   Force the Obsidian Setting row to stack vertically so the
+   textarea, variable chips and character counter each get the
+   full available width instead of being squeezed into the narrow
+   right-hand control column.
+--------------------------------------------------------------- */
+.reminder-telegram-template-setting.setting-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.reminder-telegram-template-setting .setting-item-info {
+    margin-right: 0;
+    padding-right: 0;
+}
+
+.reminder-telegram-template-setting .setting-item-name {
+    font-size: var(--font-ui-medium);
+    font-weight: var(--font-semibold);
+}
+
+.reminder-telegram-template-setting .setting-item-description {
+    margin-top: 0.25rem;
+    color: var(--text-muted);
+    line-height: var(--line-height-tight);
+}
+
 .reminder-telegram-template-setting .setting-item-control {
-    flex-grow: 1;
-    min-width: 0;
+    justify-content: stretch;
+    width: 100%;
+    padding-top: 0;
 }
 
 .reminder-telegram-template-setting textarea.reminder-telegram-template-textarea {
     box-sizing: border-box;
     width: 100%;
-    min-height: 12rem;
+    min-height: 10rem;
+    padding: 0.75rem;
     font-family: var(--font-mono);
     font-size: var(--font-ui-small);
     line-height: var(--line-height-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m, 8px);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
     resize: vertical;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Settings: Telegram setup guide */
+.reminder-telegram-template-setting textarea.reminder-telegram-template-textarea:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+}
+
+/* Variable chips: sit on their own row below the textarea */
+.reminder-telegram-variable-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    width: 100%;
+    margin: 0.25rem 0 0;
+    padding: 0;
+}
+
+.reminder-telegram-variable-chip {
+    padding: 0.2rem 0.65rem;
+    background-color: var(--background-modifier-form-field);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--font-ui-smaller, 0.8em);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.reminder-telegram-variable-chip:hover {
+    background-color: var(--background-modifier-form-field-highlighted);
+    border-color: var(--interactive-accent);
+    color: var(--text-normal);
+    transform: translateY(-1px);
+}
+
+.reminder-telegram-variable-chip:active {
+    transform: translateY(0);
+}
+
+/* Character counter: right-aligned under the chips */
+.reminder-telegram-character-counter {
+    width: 100%;
+    margin-top: 0.25rem;
+    font-size: var(--font-ui-smaller, 0.8em);
+    color: var(--text-muted);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.reminder-telegram-character-warning {
+    color: var(--text-error);
+    font-weight: var(--font-semibold);
+}
+
+/* ---------------------------------------------------------------
+   Preview panel
+--------------------------------------------------------------- */
+.reminder-telegram-preview-container {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m, 8px);
+    background-color: var(--background-secondary);
+}
+
+.reminder-telegram-preview-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.reminder-telegram-preview-title {
+    font-size: var(--font-ui-medium);
+    font-weight: var(--font-semibold);
+    color: var(--text-normal);
+}
+
+.reminder-telegram-preview-section {
+    margin-bottom: 1.25rem;
+}
+
+.reminder-telegram-preview-section:last-child {
+    margin-bottom: 0;
+}
+
+.reminder-telegram-preview-label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-medium);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.reminder-telegram-preview-content {
+    padding: 0.75rem 0.9rem;
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s, 6px);
+    font-family: var(--font-text);
+    font-size: var(--font-ui-small);
+    line-height: var(--line-height-normal);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.reminder-telegram-preview-placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.reminder-telegram-preview-error {
+    color: var(--text-error);
+}
+
+/* ---------------------------------------------------------------
+   Telegram setup guide
+--------------------------------------------------------------- */
 .reminder-telegram-setup-guide {
     display: flex;
     flex-direction: column;
