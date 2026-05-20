@@ -1,6 +1,6 @@
 import {App, Notice} from 'obsidian';
 
-import {VaultTask, scanVaultForTasks, getDueTasks, getTaskNotificationKey, ScanSettings, filterDueTasksByCheckFlags} from './tasks';
+import {VaultTask, scanVaultForTasks, getDueTasks, getUpcomingTasks, getTaskNotificationKey, ScanSettings, filterDueTasksByCheckFlags} from './tasks';
 
 import {sendBulkReminders, sendTaskReminder, sendTestNotification as telegramSendTestNotification, TelegramSendResult, TelegramTaskTemplateFields} from './telegram';
 
@@ -29,8 +29,8 @@ export const DEFAULT_NOTIFICATION_STATE: NotificationState = {
 export interface CheckDeadlinesOptions {
 	checkToday: boolean;
 	checkOverdue: boolean;
-	/** Reserved for upcoming reminders; not used by checkAndNotify yet. */
-	daysAhead: number | null;
+	/** Number of days ahead to check for upcoming tasks (0 to disable). */
+	daysAhead: number;
 	sendBulk: boolean;
 	maxTasks: number;
 }
@@ -38,7 +38,7 @@ export interface CheckDeadlinesOptions {
 const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
 	checkToday: true,
 	checkOverdue: true,
-	daysAhead: null,
+	daysAhead: 0,
 	sendBulk: true,
 	maxTasks: 10
 };
@@ -103,6 +103,20 @@ export function clearTaskNotification(task: VaultTask, state: NotificationState)
 /**
  * Formats a task for Telegram notification
  */
+/** Merges due and upcoming lists, keeping due tasks first and skipping duplicate task ids. */
+function mergeTasksForNotification(dueTasks: VaultTask[], upcomingTasks: VaultTask[]): VaultTask[] {
+	const seen = new Set<string>();
+	const merged: VaultTask[] = [];
+	for (const task of [...dueTasks, ...upcomingTasks]) {
+		if (seen.has(task.id)) {
+			continue;
+		}
+		seen.add(task.id);
+		merged.push(task);
+	}
+	return merged;
+}
+
 function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
 	return {
 		taskName: task.text,
@@ -151,7 +165,13 @@ export async function checkAndNotify(
 
 	const tasksToNotify = dueTasks.filter(task => !isAlreadyNotified(task, state));
 
-	const limitedTasks = tasksToNotify.slice(0, opts.maxTasks);
+	const upcomingToNotify = opts.daysAhead > 0
+		? getUpcomingTasks(allTasks, today, opts.daysAhead)
+			.filter(task => !isAlreadyNotified(task, state))
+		: [];
+
+	const allTasksToNotify = mergeTasksForNotification(tasksToNotify, upcomingToNotify);
+	const limitedTasks = allTasksToNotify.slice(0, opts.maxTasks);
 
 	if (limitedTasks.length > 0) {
 		// Use individual notifications for single tasks, bulk for multiple tasks

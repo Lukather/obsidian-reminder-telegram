@@ -1,6 +1,6 @@
 import {Notice, Plugin} from 'obsidian';
 import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} from "./settings";
-import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification} from "./checker";
+import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions} from "./checker";
 import {ScanSettings} from "./tasks";
 import {sanitizeErrorMessage} from "./utils";
 
@@ -77,6 +77,22 @@ export default class ReminderTelegramPlugin extends Plugin {
 		if (typeof this.settings.maxTasksPerCheck !== 'number' || this.settings.maxTasksPerCheck < 1) {
 			this.settings.maxTasksPerCheck = DEFAULT_SETTINGS.maxTasksPerCheck;
 		}
+		if (typeof this.settings.upcomingRemindersDaysAhead !== 'number' || this.settings.upcomingRemindersDaysAhead < 0) {
+			this.settings.upcomingRemindersDaysAhead = DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
+		}
+		if (typeof this.settings.upcomingRemindersEnabled !== 'boolean') {
+			this.settings.upcomingRemindersEnabled = DEFAULT_SETTINGS.upcomingRemindersEnabled;
+		}
+	}
+
+	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
+		const daysAhead = this.settings.upcomingRemindersEnabled && this.settings.upcomingRemindersDaysAhead > 0
+			? this.settings.upcomingRemindersDaysAhead
+			: 0;
+		return {
+			maxTasks: this.settings.maxTasksPerCheck,
+			daysAhead
+		};
 	}
 
 	async saveSettings(): Promise<void> {
@@ -115,7 +131,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 				this.settings.bulkMessageTemplate,
 				this.settings.individualMessageTemplate,
 				this.settings.useMarkdownFormatting,
-				{maxTasks: this.settings.maxTasksPerCheck}
+				this.getCheckOptions()
 			);
 			await this.saveSettings();
 			this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
@@ -154,7 +170,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 								this.settings.bulkMessageTemplate,
 								this.settings.individualMessageTemplate,
 								this.settings.useMarkdownFormatting,
-								{maxTasks: this.settings.maxTasksPerCheck}
+								this.getCheckOptions()
 							);
 							await this.saveSettings();
 							this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
