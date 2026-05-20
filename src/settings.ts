@@ -19,6 +19,8 @@ export interface ReminderTelegramSettings {
 	upcomingRemindersDaysAhead: number;
 	/** Enable notifications for upcoming tasks. */
 	upcomingRemindersEnabled: boolean;
+	/** Enable live preview of templates */
+	livePreviewEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -34,11 +36,17 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	useMarkdownFormatting: false,
 	maxTasksPerCheck: 10,
 	upcomingRemindersDaysAhead: 1,
-	upcomingRemindersEnabled: true
+	upcomingRemindersEnabled: true,
+	livePreviewEnabled: true
 };
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
 	plugin: ReminderTelegramPlugin;
+	private previewElements?: {
+		individual: HTMLElement;
+		bulk: HTMLElement;
+		test: HTMLElement;
+	};
 	constructor(app: App, plugin: ReminderTelegramPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -163,8 +171,10 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			.setName('Message templates')
 			.setDesc('Customize Telegram notification messages')
 			.setHeading();
+
+		// Multi-task digest template (formerly "Bulk message template")
 		const bulkTemplateSetting = new Setting(containerEl)
-			.setName('Bulk message template')
+			.setName('Multi-task digest')
 			.setDesc('Template for multiple tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual template below.');
 		bulkTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
 		bulkTemplateSetting.addTextArea(text => {
@@ -174,9 +184,14 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.bulkMessageTemplate = value;
 					await this.plugin.saveSettings();
+					this.updateTemplatePreviews();
 				});
 			text.inputEl.addClass('reminder-telegram-template-textarea');
 		});
+		this.renderVariableChips(bulkTemplateSetting.settingEl, ['count', 'tasks']);
+		this.renderCharacterCounter(bulkTemplateSetting.settingEl, this.plugin.settings.bulkMessageTemplate);
+
+		// Individual message template
 		const individualTemplateSetting = new Setting(containerEl)
 			.setName('Individual message template')
 			.setDesc('Template for a single task and for each line in a bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
@@ -188,28 +203,57 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.individualMessageTemplate = value;
 					await this.plugin.saveSettings();
+					this.updateTemplatePreviews();
 				});
 			text.inputEl.addClass('reminder-telegram-template-textarea');
 		});
-		new Setting(containerEl)
+		this.renderVariableChips(individualTemplateSetting.settingEl, ['taskName', 'fileName', 'deadline', 'filePath', 'taskId']);
+		this.renderCharacterCounter(individualTemplateSetting.settingEl, this.plugin.settings.individualMessageTemplate);
+
+		// Test message template with textarea and preview
+		const testTemplateSetting = new Setting(containerEl)
 			.setName('Test message template')
-			.setDesc('Template for test notifications.')
-			.addText(text => text
-				.setPlaceholder('Test notification from reminder Telegram plugin.')
+			.setDesc('Template for test notifications. Variables: none (raw text).');
+		testTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
+		testTemplateSetting.addTextArea(text => {
+			text
+				.setPlaceholder('Test notification from reminder Telegram plugin')
 				.setValue(this.plugin.settings.testMessageTemplate)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.testMessageTemplate = value;
 					await this.plugin.saveSettings();
-				}));
+					this.updateTemplatePreviews();
+				});
+			text.inputEl.addClass('reminder-telegram-template-textarea');
+		});
+		this.renderCharacterCounter(testTemplateSetting.settingEl, this.plugin.settings.testMessageTemplate);
+
+		// Live preview toggle
 		new Setting(containerEl)
-			.setName('Use Markdown formatting')
-			.setDesc('Enable Telegram Markdown formatting for messages.')
+			.setName('Live preview')
+			.setDesc('Show real-time preview of notification templates')
 			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.livePreviewEnabled)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.livePreviewEnabled = value;
+					await this.plugin.saveSettings();
+					this.updateTemplatePreviews();
+				}));
+
+		// Markdown formatting with example
+		const markdownSetting = new Setting(containerEl)
+			.setName('Use Markdown formatting')
+			.setDesc('Enable Telegram Markdown formatting for messages. Example: *bold*, _italic_, [links](https://example.com)');
+		markdownSetting.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.useMarkdownFormatting)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.useMarkdownFormatting = value;
 					await this.plugin.saveSettings();
+					this.updateTemplatePreviews();
 				}));
+
+		// Preview panel
+		this.renderPreviewPanel(containerEl);
 		containerEl.createEl('hr');
 		new Setting(containerEl)
 			.setName('Test notification')
@@ -276,5 +320,180 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		} else {
 			new Notice(`Failed to send test: ${result.error}`);
 		}
+	}
+
+	/**
+	 * Renders clickable variable chips that insert variables into the textarea
+	 */
+	private renderVariableChips(container: HTMLElement, variables: string[]): void {
+		const chipsContainer = container.createDiv({cls: 'reminder-telegram-variable-chips'});
+		variables.forEach(variable => {
+			const chip = chipsContainer.createEl('button', {
+				cls: 'reminder-telegram-variable-chip',
+				text: `{${variable}}`
+			});
+			chip.onclick = () => {
+				const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
+				if (textarea instanceof HTMLTextAreaElement) {
+					const start = textarea.selectionStart;
+					const end = textarea.selectionEnd;
+					const value = textarea.value;
+					textarea.value = value.substring(0, start) + `{${variable}}` + value.substring(end);
+					textarea.selectionStart = textarea.selectionEnd = start + `{${variable}}`.length;
+					textarea.focus();
+					
+					// Trigger change event
+					const event = new Event('change', {bubbles: true});
+					textarea.dispatchEvent(event);
+				}
+			};
+		});
+	}
+
+	/**
+	 * Renders character counter for template fields
+	 */
+	private renderCharacterCounter(container: HTMLElement, template: string): void {
+		const counterContainer = container.createDiv({cls: 'reminder-telegram-character-counter'});
+		const counter = counterContainer.createSpan({cls: 'reminder-telegram-character-count'});
+		
+		const updateCounter = () => {
+			const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
+			if (textarea instanceof HTMLTextAreaElement) {
+				const length = textarea.value.length;
+				const maxLength = 4096; // Telegram message limit
+				const percentage = Math.min(100, Math.round((length / maxLength) * 100));
+				
+				counter.textContent = `${length}/${maxLength} characters (${percentage}%)`;
+				
+				// Add warning class if approaching limit
+				if (percentage >= 80) {
+					counterContainer.addClass('reminder-telegram-character-warning');
+				} else {
+					counterContainer.removeClass('reminder-telegram-character-warning');
+				}
+			}
+		};
+		
+		// Initial update
+		updateCounter();
+		
+		// Update on input
+		const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
+		if (textarea) {
+			textarea.addEventListener('input', updateCounter);
+			textarea.addEventListener('change', updateCounter);
+		}
+	}
+
+	/**
+	 * Renders template preview panel
+	 */
+	private renderPreviewPanel(container: HTMLElement): void {
+		const previewContainer = container.createDiv({cls: 'reminder-telegram-preview-container'});
+		
+		// Preview header
+		const header = previewContainer.createDiv({cls: 'reminder-telegram-preview-header'});
+		header.createSpan({cls: 'reminder-telegram-preview-title', text: 'Preview'});
+		
+		// Individual template preview
+		const individualPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
+		individualPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Individual task:'});
+		const individualPreviewContent = individualPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		individualPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
+		
+		// Bulk template preview
+		const bulkPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
+		bulkPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Multi-task digest:'});
+		const bulkPreviewContent = bulkPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		bulkPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
+		
+		// Test template preview
+		const testPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
+		testPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Test notification:'});
+		const testPreviewContent = testPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		testPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
+		
+		// Store references for updates
+		this.previewElements = {
+			individual: individualPreviewContent,
+			bulk: bulkPreviewContent,
+			test: testPreviewContent
+		};
+		
+		// Initial update
+		this.updateTemplatePreviews();
+	}
+
+	/**
+	 * Updates all template previews
+	 */
+	private updateTemplatePreviews(): void {
+		if (!this.plugin.settings.livePreviewEnabled || !this.previewElements) {
+			return;
+		}
+		
+		const elements = this.previewElements;
+		
+		// Individual template preview
+		try {
+			const individualPreview = this.renderTemplatePreview(
+				this.plugin.settings.individualMessageTemplate,
+				{
+					taskName: 'Finish project report',
+					fileName: 'Project.md',
+					deadline: '2024-12-31',
+					filePath: 'Work/Project.md',
+					taskId: 'Work/Project.md:42'
+				}
+			);
+			elements.individual.empty();
+			elements.individual.createDiv({text: individualPreview});
+		} catch (error) {
+			console.error('Error rendering individual preview:', error);
+			elements.individual.empty();
+			elements.individual.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
+		}
+		
+		// Bulk template preview
+		try {
+			const taskLines = [
+				'Task: Finish project report (2024-12-31) - Project.md',
+				'Task: Review code changes (2024-12-28) - Code.md'
+			];
+			const bulkPreview = this.renderTemplatePreview(
+				this.plugin.settings.bulkMessageTemplate,
+				{
+					count: 2,
+					tasks: taskLines.join('\n')
+				}
+			);
+			elements.bulk.empty();
+			elements.bulk.createDiv({text: bulkPreview});
+		} catch (error) {
+			console.error('Error rendering bulk preview:', error);
+			elements.bulk.empty();
+			elements.bulk.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
+		}
+		
+		// Test template preview
+		try {
+			elements.test.empty();
+			elements.test.createDiv({text: this.plugin.settings.testMessageTemplate});
+		} catch (error) {
+			console.error('Error rendering test preview:', error);
+			elements.test.empty();
+			elements.test.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
+		}
+	}
+
+	/**
+	 * Simple template rendering for preview
+	 */
+	private renderTemplatePreview(template: string, variables: Record<string, string | number>): string {
+		return template.replace(/\{(\w+)\}/g, (match, varName) => {
+			const value = variables[varName as keyof typeof variables];
+			return value !== undefined ? String(value) : match;
+		});
 	}
 }
