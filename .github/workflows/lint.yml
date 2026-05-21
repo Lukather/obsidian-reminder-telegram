@@ -64,15 +64,15 @@ jobs:
       - name: Generate provenance attestation for style.css
         uses: actions/attest-build-provenance@v4
         with:
-          subject-name: style.css
-          subject-path: style.css
+          subject-name: styles.css
+          subject-path: styles.css
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v3
         with:
           files: |
             main.js
-            style.css
+            styles.css
             manifest.json
           tag_name: ${{ github.ref_name }}
         env:
