@@ -231,7 +231,7 @@ export async function scanVaultForTasks(
 ): Promise<VaultTask[]> {
 	const tasks: VaultTask[] = [];
 	const settings = scanSettings || { scanMode: 'whole-vault', targetFolder: '' };
-	const files = app.vault.getMarkdownFiles();
+	const files = app.vault.getFiles().filter(file => file.extension === 'md');
 	for (const file of files) {
 		if (settings.scanMode === 'specific-folder' && !isFileInFolder(file.path, settings.targetFolder)) {
 			continue;
