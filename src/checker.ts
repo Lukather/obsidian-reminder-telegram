@@ -1,35 +1,21 @@
-import {App, Notice} from 'obsidian';
-
-import {VaultTask, scanVaultForTasks, getDueTasks, getUpcomingTasks, getTaskNotificationKey, ScanSettings, filterDueTasksByCheckFlags} from './tasks';
-
+import {Notice} from 'obsidian';
+import {VaultTask, getDueTasks, getUpcomingTasks, getTaskNotificationKey, filterDueTasksByCheckFlags, deadlineToDateString} from './tasks';
 import {sendBulkReminders, sendTaskReminder, sendTestNotification as telegramSendTestNotification, TelegramSendResult, TelegramTaskTemplateFields} from './telegram';
-
 import {sanitizeErrorMessage} from './utils';
 
-
-/**
- * Interface for notification tracking data
- */
 export interface NotificationState {
 	notifiedTasks: Record<string, number>;
 	lastCheck: number;
 }
 
-/**
- * Default notification state
- */
 export const DEFAULT_NOTIFICATION_STATE: NotificationState = {
 	notifiedTasks: {},
 	lastCheck: 0
 };
 
-/**
- * Options for checking deadlines
- */
 export interface CheckDeadlinesOptions {
 	checkToday: boolean;
 	checkOverdue: boolean;
-	/** Number of days ahead to check for upcoming tasks (0 to disable). */
 	daysAhead: number;
 	sendBulk: boolean;
 	maxTasks: number;
@@ -43,17 +29,11 @@ const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
 	maxTasks: 10
 };
 
-/**
- * Interface for persisted notification state data
- */
 interface PersistedNotificationState {
 	notifiedTasks?: Record<string, number>;
 	lastCheck?: number;
 }
 
-/**
- * Loads notification state from plugin data
- */
 export function loadNotificationState(data: unknown): NotificationState {
 	if (data && typeof data === 'object') {
 		const persisted = data as PersistedNotificationState;
@@ -65,9 +45,6 @@ export function loadNotificationState(data: unknown): NotificationState {
 	return DEFAULT_NOTIFICATION_STATE;
 }
 
-/**
- * Saves notification state to plugin data
- */
 export function saveNotificationState(state: NotificationState): PersistedNotificationState {
 	return {
 		notifiedTasks: state.notifiedTasks,
@@ -75,101 +52,54 @@ export function saveNotificationState(state: NotificationState): PersistedNotifi
 	};
 }
 
-/**
- * Checks if a task has already been notified for its deadline
- */
 function isAlreadyNotified(task: VaultTask, state: NotificationState): boolean {
 	const key = getTaskNotificationKey(task);
 	return state.notifiedTasks[key] !== undefined;
 }
 
-/**
- * Marks a task as notified
- */
 function markAsNotified(task: VaultTask, state: NotificationState): void {
 	const key = getTaskNotificationKey(task);
 	state.notifiedTasks[key] = Date.now();
 	state.lastCheck = Date.now();
 }
 
-/**
- * Clears notification state for a task
- */
 export function clearTaskNotification(task: VaultTask, state: NotificationState): void {
 	const key = getTaskNotificationKey(task);
 	delete state.notifiedTasks[key];
 }
 
-/**
- * Prunes old notification keys to prevent unbounded growth
- * Keeps notifications from the last 30 days and up to 1000 most recent notifications
- */
 export function pruneNotificationState(state: NotificationState): void {
-	const now = Date.now();
 	const keys = Object.keys(state.notifiedTasks);
-	
-	if (keys.length <= 1000) {
-		// No need to prune if we have less than 1000 keys
+	if (keys.length <= 1000) return;
+
+	const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+	const recent = Object.entries(state.notifiedTasks)
+		.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
+
+	if (recent.length <= 1000) {
+		state.notifiedTasks = Object.fromEntries(recent);
 		return;
 	}
-	
-	// Keep notifications from the last 30 days
-	const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
-	
-	// Filter out old notifications
-	const recentKeys: Record<string, number> = {};
-	let keptCount = 0;
-	
-	for (const key of keys) {
-		const timestamp = state.notifiedTasks[key];
-		if (timestamp && timestamp >= thirtyDaysAgo) {
-			recentKeys[key] = timestamp;
-			keptCount++;
-		}
-	}
-	
-	// If we still have too many, keep only the most recent 1000
-	if (keptCount > 1000) {
-		const sortedKeys = keys
-			.map(key => ({ key, timestamp: state.notifiedTasks[key] }))
-			.filter(item => item.timestamp !== undefined)
-			.sort((a, b) => b.timestamp! - a.timestamp!)
-			.slice(0, 1000);
-		
-		const finalKeys: Record<string, number> = {};
-		for (const { key, timestamp } of sortedKeys) {
-			if (timestamp !== undefined) {
-				finalKeys[key] = timestamp;
-			}
-		}
-		state.notifiedTasks = finalKeys;
-	} else {
-		state.notifiedTasks = recentKeys;
-	}
+
+	state.notifiedTasks = Object.fromEntries(
+		recent.sort((a, b) => b[1] - a[1]).slice(0, 1000)
+	);
 }
 
-/**
- * Formats a task for Telegram notification
- */
-/** Merges due and upcoming lists, keeping due tasks first and skipping duplicate task ids. */
 function mergeTasksForNotification(dueTasks: VaultTask[], upcomingTasks: VaultTask[]): VaultTask[] {
 	const seen = new Set<string>();
-	const merged: VaultTask[] = [];
-	for (const task of [...dueTasks, ...upcomingTasks]) {
-		if (seen.has(task.id)) {
-			continue;
-		}
+	return [...dueTasks, ...upcomingTasks].filter(task => {
+		if (seen.has(task.id)) return false;
 		seen.add(task.id);
-		merged.push(task);
-	}
-	return merged;
+		return true;
+	});
 }
 
 function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
 	return {
 		taskName: task.text,
 		fileName: task.fileName,
-		deadline: task.deadlineString || task.deadline?.toISOString().split('T')[0] || 'Unknown',
+		deadline: task.deadlineString || deadlineToDateString(task.deadline) || 'Unknown',
 		filePath: task.filePath,
 		taskId: task.id
 	};
@@ -179,12 +109,11 @@ function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
  * Checks for due tasks and sends notifications
  */
 export async function checkAndNotify(
-	app: App,
+	allTasks: VaultTask[],
 	botToken: string,
 	chatId: string,
 	state: NotificationState,
 	options: Partial<CheckDeadlinesOptions> = {},
-	scanSettings?: ScanSettings,
 	bulkTemplate?: string,
 	individualTemplate?: string,
 	testTemplate?: string,
@@ -201,7 +130,6 @@ export async function checkAndNotify(
 	const sendResults: TelegramSendResult[] = [];
 	let notifiedTasksCount = 0;
 
-	const allTasks = await scanVaultForTasks(app, scanSettings);
 	const today = new Date();
 
 	const dueTasks = filterDueTasksByCheckFlags(
@@ -221,59 +149,66 @@ export async function checkAndNotify(
 	const allTasksToNotify = mergeTasksForNotification(tasksToNotify, upcomingToNotify);
 	const limitedTasks = allTasksToNotify.slice(0, opts.maxTasks);
 
-	if (limitedTasks.length > 0) {
-		// Use individual notifications for single tasks, bulk for multiple tasks
-		const useBulk = opts.sendBulk && limitedTasks.length > 1;
+	if (limitedTasks.length === 0) {
+		pruneNotificationState(state);
+		return {
+			totalTasks: allTasks.length,
+			dueTasks: dueTasks.length,
+			notifiedTasks: 0,
+			sendResults,
+			state
+		};
+	}
 
-		if (useBulk) {
-			const formattedTasks = limitedTasks.map(formatTaskForTelegram);
-			const result = await sendBulkReminders(
+	const useBulk = opts.sendBulk && limitedTasks.length > 1;
+
+	if (useBulk) {
+		const formattedTasks = limitedTasks.map(formatTaskForTelegram);
+		const result = await sendBulkReminders(
+			botToken,
+			chatId,
+			formattedTasks,
+			bulkTemplate,
+			individualTemplate,
+			useMarkdown
+		);
+		sendResults.push(result);
+
+		if (result.success) {
+			for (const task of limitedTasks) {
+				markAsNotified(task, state);
+				notifiedTasksCount++;
+			}
+		}
+	} else {
+		for (const task of limitedTasks) {
+			const formattedTask = formatTaskForTelegram(task);
+			const result = await sendTaskReminder(
 				botToken,
 				chatId,
-				formattedTasks,
-				bulkTemplate,
+				formattedTask.taskName,
+				formattedTask.fileName,
+				formattedTask.deadline,
 				individualTemplate,
-				useMarkdown
+				useMarkdown,
+				formattedTask.filePath,
+				formattedTask.taskId
 			);
 			sendResults.push(result);
 
 			if (result.success) {
-				for (const task of limitedTasks) {
-					markAsNotified(task, state);
-					notifiedTasksCount++;
-				}
-			}
-		} else {
-			for (const task of limitedTasks) {
-				const formattedTask = formatTaskForTelegram(task);
-				const result = await sendTaskReminder(
+				markAsNotified(task, state);
+				notifiedTasksCount++;
+			} else {
+				console.error(`Failed to send notification for task ${task.id}:`, sanitizeErrorMessage(
+					String(result.error),
 					botToken,
-					chatId,
-					formattedTask.taskName,
-					formattedTask.fileName,
-					formattedTask.deadline,
-					individualTemplate,
-					useMarkdown,
-					formattedTask.filePath,
-					formattedTask.taskId
-				);
-				sendResults.push(result);
-
-				if (result.success) {
-					markAsNotified(task, state);
-					notifiedTasksCount++;
-				} else {
-					console.error(`Failed to send notification for task ${task.id}:`, sanitizeErrorMessage(
-						String(result.error),
-						botToken,
-						chatId
-					));
-				}
+					chatId
+				));
 			}
 		}
 	}
 
-	// Prune old notification keys to prevent unbounded growth
 	pruneNotificationState(state);
 
 	return {
@@ -285,27 +220,23 @@ export async function checkAndNotify(
 	};
 }
 
-/**
- * Checks for due tasks and sends notifications (simplified version)
- */
 export async function checkDeadlines(
-	app: App,
+	allTasks: VaultTask[],
 	botToken: string,
 	chatId: string,
 	state: NotificationState,
-	scanSettings?: ScanSettings,
 	bulkTemplate?: string,
 	individualTemplate?: string,
 	useMarkdown?: boolean,
 	checkOptions?: Partial<CheckDeadlinesOptions>
 ): Promise<NotificationState> {
 	try {
-		const result = await checkAndNotify(app, botToken, chatId, state, {
+		const result = await checkAndNotify(allTasks, botToken, chatId, state, {
 			checkToday: true,
 			checkOverdue: true,
 			sendBulk: true,
 			...checkOptions
-		}, scanSettings, bulkTemplate, individualTemplate, undefined, useMarkdown);
+		}, bulkTemplate, individualTemplate, undefined, useMarkdown);
 
 		if (result.notifiedTasks > 0) {
 			new Notice(`Sent ${result.notifiedTasks} reminder(s) to Telegram`);
