@@ -1,12 +1,18 @@
-import {Notice, Plugin} from 'obsidian';
+import {Notice, Plugin, TFile} from 'obsidian';
 import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} from "./settings";
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions} from "./checker";
 import {ScanSettings} from "./tasks";
+import {TaskIndex} from "./task-index";
 import {sanitizeErrorMessage} from "./utils";
+
+function isMarkdownFile(file: unknown): file is TFile {
+	return file instanceof TFile && file.extension === 'md';
+}
 
 export default class ReminderTelegramPlugin extends Plugin {
 	settings: ReminderTelegramSettings;
 	notificationState: NotificationState;
+	taskIndex: TaskIndex;
 	private cleanupInterval: (() => void) | null = null;
 	statusBarItemEl: HTMLElement | null = null;
 
@@ -14,22 +20,42 @@ export default class ReminderTelegramPlugin extends Plugin {
 		await this.loadSettings();
 		this.notificationState = loadNotificationState(await this.loadData());
 
+		this.taskIndex = new TaskIndex(this.app, this.getScanSettings());
+		await this.taskIndex.buildIndex();
+
+		this.registerEvent(
+			this.app.vault.on('create', (file) => {
+				if (isMarkdownFile(file)) void this.taskIndex.updateFile(file);
+			})
+		);
+		this.registerEvent(
+			this.app.vault.on('modify', (file) => {
+				if (isMarkdownFile(file)) void this.taskIndex.updateFile(file);
+			})
+		);
+		this.registerEvent(
+			this.app.vault.on('delete', (file) => {
+				this.taskIndex.removeFile(file);
+			})
+		);
+		this.registerEvent(
+			this.app.metadataCache.on('resolve', (file) => {
+				if (isMarkdownFile(file)) void this.taskIndex.updateFile(file);
+			})
+		);
+
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.addClass('reminder-telegram-status-bar');
 		statusBarItemEl.createSpan({text: 'Reminder Telegram'});
-		
-		// Add icon
 		statusBarItemEl.createEl('span', {cls: 'reminder-telegram-icon', text: '🔔'});
-		
-		// Add click handler
 		statusBarItemEl.onClickEvent(() => {
 			new Notice('Checking for due tasks...');
 			void this.manualCheck();
 		});
-		
-		// Store reference to status bar for updates
 		this.statusBarItemEl = statusBarItemEl;
+
 		this.addSettingTab(new ReminderTelegramSettingTab(this.app, this));
+
 		this.addCommand({
 			id: 'check-reminders',
 			name: 'Check reminders now',
@@ -61,6 +87,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 				}
 			}
 		});
+
 		this.startPeriodicChecking();
 	}
 
@@ -71,22 +98,20 @@ export default class ReminderTelegramPlugin extends Plugin {
 		}
 	}
 
-
-
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ReminderTelegramSettings>);
-		if (typeof this.settings.maxTasksPerCheck !== 'number' || this.settings.maxTasksPerCheck < 1) {
-			this.settings.maxTasksPerCheck = DEFAULT_SETTINGS.maxTasksPerCheck;
-		}
-		if (typeof this.settings.upcomingRemindersDaysAhead !== 'number' || this.settings.upcomingRemindersDaysAhead < 0) {
-			this.settings.upcomingRemindersDaysAhead = DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
-		}
-		if (typeof this.settings.upcomingRemindersEnabled !== 'boolean') {
-			this.settings.upcomingRemindersEnabled = DEFAULT_SETTINGS.upcomingRemindersEnabled;
-		}
-		if (typeof this.settings.livePreviewEnabled !== 'boolean') {
-			this.settings.livePreviewEnabled = DEFAULT_SETTINGS.livePreviewEnabled;
-		}
+		this.settings.maxTasksPerCheck = typeof this.settings.maxTasksPerCheck === 'number' && this.settings.maxTasksPerCheck >= 1
+			? this.settings.maxTasksPerCheck
+			: DEFAULT_SETTINGS.maxTasksPerCheck;
+		this.settings.upcomingRemindersDaysAhead = typeof this.settings.upcomingRemindersDaysAhead === 'number' && this.settings.upcomingRemindersDaysAhead >= 0
+			? this.settings.upcomingRemindersDaysAhead
+			: DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
+		this.settings.upcomingRemindersEnabled = typeof this.settings.upcomingRemindersEnabled === 'boolean'
+			? this.settings.upcomingRemindersEnabled
+			: DEFAULT_SETTINGS.upcomingRemindersEnabled;
+		this.settings.livePreviewEnabled = typeof this.settings.livePreviewEnabled === 'boolean'
+			? this.settings.livePreviewEnabled
+			: DEFAULT_SETTINGS.livePreviewEnabled;
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
@@ -119,7 +144,6 @@ export default class ReminderTelegramPlugin extends Plugin {
 			new Notice('Please configure Telegram bot token and chat ID in settings');
 			return;
 		}
-
 		if (!this.settings.notificationsEnabled) {
 			new Notice('Notifications are disabled in settings');
 			return;
@@ -127,11 +151,10 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		try {
 			this.notificationState = await checkDeadlines(
-				this.app,
+				this.taskIndex.getAllTasks(),
 				this.settings.telegramBotToken,
 				this.settings.telegramChatId,
 				this.notificationState,
-				this.getScanSettings(),
 				this.settings.bulkMessageTemplate,
 				this.settings.individualMessageTemplate,
 				this.settings.useMarkdownFormatting,
@@ -156,54 +179,56 @@ export default class ReminderTelegramPlugin extends Plugin {
 		}
 
 		if (
-			this.settings.notificationsEnabled &&
-			this.settings.telegramBotToken &&
-			this.settings.telegramChatId &&
-			this.settings.checkIntervalMinutes > 0
+			!this.settings.notificationsEnabled ||
+			!this.settings.telegramBotToken ||
+			!this.settings.telegramChatId ||
+			this.settings.checkIntervalMinutes <= 0
 		) {
-			const intervalId = window.setInterval(
-				(): void => {
-					void (async (): Promise<void> => {
-						try {
-							this.notificationState = await checkDeadlines(
-								this.app,
-								this.settings.telegramBotToken,
-								this.settings.telegramChatId,
-								this.notificationState,
-								this.getScanSettings(),
-								this.settings.bulkMessageTemplate,
-								this.settings.individualMessageTemplate,
-								this.settings.useMarkdownFormatting,
-								this.getCheckOptions()
-							);
-							await this.saveSettings();
-							this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
-						} catch (error) {
-							console.error('Error during periodic check:', sanitizeErrorMessage(
+			return;
+		}
+
+		const intervalId = window.setInterval(
+			(): void => {
+				void (async (): Promise<void> => {
+					try {
+						this.notificationState = await checkDeadlines(
+							this.taskIndex.getAllTasks(),
+							this.settings.telegramBotToken,
+							this.settings.telegramChatId,
+							this.notificationState,
+							this.settings.bulkMessageTemplate,
+							this.settings.individualMessageTemplate,
+							this.settings.useMarkdownFormatting,
+							this.getCheckOptions()
+						);
+						await this.saveSettings();
+						this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
+					} catch (error) {
+						console.error('Error during periodic check:', sanitizeErrorMessage(
 							String(error),
 							this.settings.telegramBotToken,
 							this.settings.telegramChatId
 						));
-						}
-					})();
-				},
-				this.settings.checkIntervalMinutes * 60 * 1000
-			);
+					}
+				})();
+			},
+			this.settings.checkIntervalMinutes * 60 * 1000
+		);
 
-			this.registerInterval(intervalId);
-			this.cleanupInterval = (): void => {
-				window.clearInterval(intervalId);
-			};
-			void this.manualCheck();
-		}
+		this.registerInterval(intervalId);
+		this.cleanupInterval = (): void => {
+			window.clearInterval(intervalId);
+		};
+		void this.manualCheck();
 	}
 
 	async updateSettings(newSettings: Partial<ReminderTelegramSettings>): Promise<void> {
 		this.settings = { ...this.settings, ...newSettings };
 		await this.saveSettings();
+		this.taskIndex.updateScanSettings(this.getScanSettings());
 		this.startPeriodicChecking();
 	}
-	
+
 	private updateStatusBarText(message: string = ''): void {
 		if (this.statusBarItemEl) {
 			const textSpan = this.statusBarItemEl.querySelector('span:not(.reminder-telegram-icon)');
@@ -212,5 +237,4 @@ export default class ReminderTelegramPlugin extends Plugin {
 			}
 		}
 	}
-
 }
