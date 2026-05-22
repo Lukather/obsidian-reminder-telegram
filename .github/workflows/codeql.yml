@@ -2,7 +2,7 @@ name: CodeQL
 
 permissions:
   contents: read
-  security-events: write
+  security-events: read
 
 on:
   push:
