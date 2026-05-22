@@ -15,6 +15,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.notificationState = loadNotificationState(await this.loadData());
 
 		const statusBarItemEl = this.addStatusBarItem();
+		statusBarItemEl.addClass('reminder-telegram-status-bar');
 		statusBarItemEl.createSpan({text: 'Reminder Telegram'});
 		
 		// Add icon

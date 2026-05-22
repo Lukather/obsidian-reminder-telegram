@@ -101,6 +101,54 @@ export function clearTaskNotification(task: VaultTask, state: NotificationState)
 }
 
 /**
+ * Prunes old notification keys to prevent unbounded growth
+ * Keeps notifications from the last 30 days and up to 1000 most recent notifications
+ */
+export function pruneNotificationState(state: NotificationState): void {
+	const now = Date.now();
+	const keys = Object.keys(state.notifiedTasks);
+	
+	if (keys.length <= 1000) {
+		// No need to prune if we have less than 1000 keys
+		return;
+	}
+	
+	// Keep notifications from the last 30 days
+	const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+	
+	// Filter out old notifications
+	const recentKeys: Record<string, number> = {};
+	let keptCount = 0;
+	
+	for (const key of keys) {
+		const timestamp = state.notifiedTasks[key];
+		if (timestamp && timestamp >= thirtyDaysAgo) {
+			recentKeys[key] = timestamp;
+			keptCount++;
+		}
+	}
+	
+	// If we still have too many, keep only the most recent 1000
+	if (keptCount > 1000) {
+		const sortedKeys = keys
+			.map(key => ({ key, timestamp: state.notifiedTasks[key] }))
+			.filter(item => item.timestamp !== undefined)
+			.sort((a, b) => b.timestamp! - a.timestamp!)
+			.slice(0, 1000);
+		
+		const finalKeys: Record<string, number> = {};
+		for (const { key, timestamp } of sortedKeys) {
+			if (timestamp !== undefined) {
+				finalKeys[key] = timestamp;
+			}
+		}
+		state.notifiedTasks = finalKeys;
+	} else {
+		state.notifiedTasks = recentKeys;
+	}
+}
+
+/**
  * Formats a task for Telegram notification
  */
 /** Merges due and upcoming lists, keeping due tasks first and skipping duplicate task ids. */
@@ -224,6 +272,9 @@ export async function checkAndNotify(
 			}
 		}
 	}
+
+	// Prune old notification keys to prevent unbounded growth
+	pruneNotificationState(state);
 
 	return {
 		totalTasks: allTasks.length,

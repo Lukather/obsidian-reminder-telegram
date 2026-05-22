@@ -43,6 +43,37 @@ export interface TelegramTaskTemplateFields {
 }
 
 /**
+ * Ensures message length doesn't exceed Telegram's 4096 character limit
+ */
+function ensureMessageLength(text: string, parseMode: 'Markdown' | 'HTML' | null): string {
+	const maxLength = 4096;
+	
+	if (text.length <= maxLength) {
+		return text;
+	}
+	
+	// Truncate the message
+	let truncated = text.substring(0, maxLength);
+	
+	// If using markdown, try to avoid breaking in the middle of markdown syntax
+	if (parseMode === 'Markdown') {
+		// Find the last space or newline before the cutoff to avoid breaking words
+		const lastSpace = truncated.lastIndexOf(' ');
+		const lastNewline = truncated.lastIndexOf('\n');
+		const lastBreak = Math.max(lastSpace, lastNewline);
+		
+		if (lastBreak > maxLength * 0.8) { // Only adjust if we're not too close to the limit
+			truncated = truncated.substring(0, lastBreak);
+		}
+	}
+	
+	// Add ellipsis to indicate truncation
+	truncated += '...';
+	
+	return truncated;
+}
+
+/**
  * Sends a message via Telegram Bot API
  */
 export async function sendTelegramMessage(
@@ -64,9 +95,12 @@ export async function sendTelegramMessage(
 
 		const url = `${TELEGRAM_API_URL}/bot${botToken}/sendMessage`;
 
+		// Ensure message length doesn't exceed Telegram's limit
+		const safeText = ensureMessageLength(text, parseMode);
+		
 		const requestBody: Record<string, string> = {
 			chat_id: chatId,
-			text: text
+			text: safeText
 		};
 		if (parseMode) {
 			requestBody.parse_mode = parseMode;
