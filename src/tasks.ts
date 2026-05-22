@@ -38,6 +38,18 @@ interface FrontmatterData {
 
 const DATE_REGEX = /\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/;
 
+function hashTaskContent(text: string, deadlineMatch: string | null): string {
+	// Create a simple hash of the task content for stable identification
+	const contentToHash = `${text}:${deadlineMatch || ''}`;
+	let hash = 0;
+	for (let i = 0; i < contentToHash.length; i++) {
+		const char = contentToHash.charCodeAt(i);
+		hash = ((hash << 5) - hash) + char;
+		hash = hash & hash; // Convert to 32bit integer
+	}
+	return Math.abs(hash).toString(36).substring(0, 8);
+}
+
 const OBSIDIAN_DATE_PATTERNS = [
 	/📅\s*(\d{4}-\d{2}-\d{2})/,
 	/due::\s*(\d{4}-\d{2}-\d{2})/i,
@@ -94,8 +106,13 @@ function parseTaskLine(line: string, filePath: string, lineNumber: number): Vaul
 	const text = textMatch && textMatch[1] ? textMatch[1].trim() : '';
 	const deadlineInfo = extractDeadline(text);
 	const fileName = filePath.split('/').pop() || filePath;
+	
+	// Create a stable task ID that includes a hash of the task content
+	const taskContentHash = hashTaskContent(text, deadlineInfo.match);
+	const stableId = `${filePath}:${lineNumber}:${taskContentHash}`;
+	
 	return {
-		id: `${filePath}:${lineNumber}`,
+		id: stableId,
 		text,
 		filePath,
 		fileName,
@@ -173,16 +190,37 @@ function formatFrontmatterForOriginalLine(frontmatter: FrontmatterData): string 
 	}).join('\n')}\n---`;
 }
 
-function parseFrontmatterTasks(content: string, filePath: string): VaultTask[] {
+interface FrontmatterCache {
+	status?: string;
+	scheduled?: string;
+	due?: string;
+	completedDate?: string;
+	[key: string]: unknown;
+}
+
+function parseFrontmatterTasksFromCache(frontmatter: FrontmatterCache | undefined, content: string, filePath: string): VaultTask[] {
 	const tasks: VaultTask[] = [];
-	const { data: frontmatter, endLine } = parseFrontmatter(content);
 	if (!frontmatter) return tasks;
+	
 	const hasDeadline = frontmatter.scheduled || frontmatter.due;
 	if (!hasDeadline) return tasks;
+	
 	const fileName = filePath.split('/').pop() || filePath;
 	const baseName = fileName.replace(/\.md$/, '');
 	let taskText = baseName;
+	
+	// Try to find a heading after frontmatter for better task text
 	const fileLines = content.split('\n');
+	let endLine = 0;
+	
+	// Find where frontmatter ends
+	for (let i = 0; i < fileLines.length; i++) {
+		if (fileLines[i]?.trim() === '---') {
+			endLine = i;
+			break;
+		}
+	}
+	
 	for (let i = endLine + 1; i < Math.min(fileLines.length, endLine + 10); i++) {
 		const line = fileLines[i]?.trim();
 		if (line?.startsWith('#')) {
@@ -192,16 +230,20 @@ function parseFrontmatterTasks(content: string, filePath: string): VaultTask[] {
 	}
 
 	const completedStatuses = ['done', 'completed', 'cancelled', 'archived'];
-	const status = frontmatter.status;
+	const status = frontmatter?.status;
 	const statusLower = status?.toLowerCase() || '';
-	const isCompleted = completedStatuses.includes(statusLower) || !!frontmatter.completedDate;
+	const isCompleted = completedStatuses.includes(statusLower) || !!frontmatter?.completedDate;
 
-	const deadlineString = frontmatter.scheduled || frontmatter.due || null;
+	const deadlineString = frontmatter?.scheduled || frontmatter?.due || null;
 	const deadline = deadlineString ? parseDate(deadlineString) : null;
 
 	if (deadline) {
+		// Create a stable task ID that includes a hash of the task content
+		const taskContentHash = hashTaskContent(taskText, deadlineString);
+		const stableId = `${filePath}:frontmatter:${taskContentHash}`;
+		
 		tasks.push({
-			id: `${filePath}:frontmatter`,
+			id: stableId,
 			text: taskText,
 			filePath,
 			fileName,
@@ -239,8 +281,13 @@ export async function scanVaultForTasks(
 
 		try {
 			const content = await app.vault.read(file);
-			tasks.push(...parseFrontmatterTasks(content, file.path));
+			const fileCache = app.metadataCache.getFileCache(file);
+			const frontmatter = fileCache?.frontmatter;
 
+			// Use the new frontmatter-based parsing
+			tasks.push(...parseFrontmatterTasksFromCache(frontmatter, content, file.path));
+
+			// Determine where the frontmatter ends
 			const { endLine } = parseFrontmatter(content);
 
 			const startLine = endLine + 1;
