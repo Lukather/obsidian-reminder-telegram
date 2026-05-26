@@ -1,9 +1,10 @@
-import {Notice, Plugin, TFile} from 'obsidian';
+import {Notice, Plugin, TFile, MarkdownView} from 'obsidian';
 import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} from "./settings";
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions} from "./checker";
-import {ScanSettings} from "./tasks";
+import {ScanSettings, VaultTask} from "./tasks";
 import {TaskIndex} from "./task-index";
 import {sanitizeErrorMessage} from "./utils";
+import {ReminderTelegramSidebarView, SIDEBAR_VIEW_TYPE} from "./sidebar-view";
 
 function isMarkdownFile(file: unknown): file is TFile {
 	return file instanceof TFile && file.extension === 'md';
@@ -16,6 +17,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 	private cleanupInterval: (() => void) | null = null;
 	statusBarItemEl: HTMLElement | null = null;
 
+
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.notificationState = loadNotificationState(await this.loadData());
@@ -25,24 +27,35 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.vault.on('create', (file) => {
-				if (isMarkdownFile(file)) void this.taskIndex.updateFile(file);
+				if (isMarkdownFile(file)) {
+					void this.taskIndex.updateFile(file).then(() => this.notifySidebarViews());
+				}
 			})
 		);
 		this.registerEvent(
 			this.app.vault.on('modify', (file) => {
-				if (isMarkdownFile(file)) void this.taskIndex.updateFile(file);
+				if (isMarkdownFile(file)) {
+					void this.taskIndex.updateFile(file).then(() => this.notifySidebarViews());
+				}
 			})
 		);
 		this.registerEvent(
 			this.app.vault.on('delete', (file) => {
 				this.taskIndex.removeFile(file);
+				this.notifySidebarViews();
 			})
 		);
 		this.registerEvent(
 			this.app.metadataCache.on('resolve', (file) => {
-				if (isMarkdownFile(file)) void this.taskIndex.updateFile(file);
+				if (isMarkdownFile(file)) {
+					void this.taskIndex.updateFile(file).then(() => this.notifySidebarViews());
+				}
 			})
 		);
+
+		this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => {
+			return new ReminderTelegramSidebarView(leaf, this);
+		});
 
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.addClass('reminder-telegram-status-bar');
@@ -53,6 +66,10 @@ export default class ReminderTelegramPlugin extends Plugin {
 			void this.manualCheck();
 		});
 		this.statusBarItemEl = statusBarItemEl;
+
+		this.addRibbonIcon('bell', 'Toggle sidebar', () => {
+			void this.toggleSidebar();
+		});
 
 		this.addSettingTab(new ReminderTelegramSettingTab(this.app, this));
 
@@ -85,6 +102,14 @@ export default class ReminderTelegramPlugin extends Plugin {
 				} else {
 					new Notice(`Failed to send test: ${result.error}`);
 				}
+			}
+		});
+
+		this.addCommand({
+			id: 'toggle-sidebar',
+			name: 'Toggle sidebar',
+			callback: (): void => {
+				void this.toggleSidebar();
 			}
 		});
 
@@ -234,6 +259,64 @@ export default class ReminderTelegramPlugin extends Plugin {
 			const textSpan = this.statusBarItemEl.querySelector('span:not(.reminder-telegram-icon)');
 			if (textSpan) {
 				textSpan.textContent = message || 'Reminder Telegram';
+			}
+		}
+	}
+
+	/* ───────── Sidebar integration ───────── */
+
+	async toggleSidebar(): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE);
+		if (leaves.length > 0) {
+			// Remove existing sidebar leaf
+			const leaf = leaves[0]!;
+			leaf.detach();
+		} else {
+			// Create a new sidebar leaf in the right sidebar
+			const rightLeaf = this.app.workspace.getRightLeaf(false);
+			if (rightLeaf) {
+				await rightLeaf.setViewState({type: SIDEBAR_VIEW_TYPE, active: true});
+				void this.app.workspace.revealLeaf(rightLeaf);
+			}
+		}
+	}
+
+	getTasksForSidebar(): VaultTask[] {
+		return this.taskIndex.getAllTasks().filter(t => !t.completed && t.deadline);
+	}
+
+	getUpcomingDaysAhead(): number {
+		return this.settings.upcomingRemindersEnabled
+			? Math.max(1, this.settings.upcomingRemindersDaysAhead)
+			: 1;
+	}
+
+	async openTask(task: VaultTask): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(task.filePath);
+		if (!(file instanceof TFile)) return;
+
+		const leaf = this.app.workspace.getMostRecentLeaf();
+		if (!leaf) return;
+
+		await leaf.openFile(file);
+
+		// Scroll to the relevant line
+		const view = leaf.view;
+		if (view instanceof MarkdownView && view.editor) {
+			const targetLine = task.source === 'frontmatter'
+				? (task.headingLineNumber ? task.headingLineNumber - 1 : 0)
+				: (task.lineNumber ? task.lineNumber - 1 : 0);
+			view.editor.setCursor({line: targetLine, ch: 0});
+			view.editor.scrollIntoView({from: {line: targetLine, ch: 0}, to: {line: targetLine, ch: 0}}, true);
+		}
+	}
+
+	/** Called by vault event handlers to notify all registered sidebar views. */
+	private notifySidebarViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE)) {
+			const view = leaf.view;
+			if (view instanceof ReminderTelegramSidebarView) {
+				view.refresh();
 			}
 		}
 	}
