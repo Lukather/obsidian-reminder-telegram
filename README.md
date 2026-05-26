@@ -26,6 +26,7 @@ Whether you use YAML frontmatter for structured task management or prefer inline
 - **⏰ Status Updates**: See when the last check was performed in the status bar
 - **🎨 Customizable Messages**: Personalize Telegram notification text with templates and variables
 - **📝 Markdown Support**: Enable Telegram Markdown formatting for rich text notifications
+- **📊 Task Sidebar**: Dedicated sidebar panel showing overdue, due today, and upcoming tasks at a glance
 - **✨ Enhanced UX**: Clickable variable chips, character counters, and live preview
 
 ## Installation
@@ -117,10 +118,37 @@ To use a specific folder:
 - Set **Scan Mode** to "Specific Folder"
 - Enter the folder path (e.g., `Tasks` or `Meta/TaskNotes/Tasks`)
 
+### Sidebar
+
+Open the **Reminder Telegram** sidebar via:
+- The **🔔 bell icon** in the left ribbon
+- **Command palette** → "Toggle sidebar"
+
+The sidebar shows three sections:
+1. **Overdue** — tasks past their deadline (highlighted in red)
+2. **Due Today** — tasks due today
+3. **Upcoming** — tasks due in the next N days (configurable)
+
+Each task row shows:
+- Task description
+- Source file name
+- Relative date (Today, Yesterday, Tomorrow, etc.)
+
+**Click any task** to open its source file and jump directly to the task line.
+
+**Filters:**
+- **Today** — shows only Overdue + Due Today (hides Upcoming)
+- **Week** — shows all sections with Upcoming limited to next 7 days
+- **Tag** — intersect with a selected frontmatter tag
+- **Clear** — removes all filters, showing everything
+
 ### Commands
 
-- **Check reminders now**: Manually trigger a deadline check
-- **Send test Telegram notification**: Verify your Telegram configuration
+| Command | Description |
+|---------|-------------|
+| **Check reminders now** | Manually trigger a deadline check |
+| **Send test Telegram notification** | Verify your Telegram configuration |
+| **Toggle sidebar** | Open/close the task sidebar |
 
 ### Message Template Customization
 
@@ -214,6 +242,7 @@ Enable **Markdown formatting** in settings to use Telegram's Markdown syntax for
 | Test Message Template | string | `"Test notification from reminder telegram plugin"` | Template for test notifications |
 | Live Preview | boolean | `true` | Show real-time preview of templates |
 | Use Markdown Formatting | boolean | `false` | Enable Telegram Markdown formatting (examples: *bold*, _italic_) |
+| Upcoming Days Ahead | number | `1` | How many days ahead to show in Upcoming sidebar section |
 
 ## Notification Content
 
@@ -259,6 +288,7 @@ Here are some planned enhancements for future versions:
 
 - [x] **Message templates**: Customization of Telegram notification text ✅ **IMPLEMENTED**
 - [x] **Enhanced UX**: Clickable variables, character counters, and live preview ✅ **IMPLEMENTED**
+- [x] **Task sidebar**: Dedicated sidebar with urgency grouping and filters ✅ **IMPLEMENTED**
 - [ ] **Advanced filters**: Exclude specific folders or patterns from the scan
 - [ ] **Timezone aware**: Explicit time zone management for precise deadlines
 - [ ] **Recurring support**: Recognition of recurring tasks (daily, weekly)
