@@ -10,6 +10,10 @@ function isMarkdownFile(file: unknown): file is TFile {
 	return file instanceof TFile && file.extension === 'md';
 }
 
+function isMarkdownFile(file: unknown): file is TFile {
+	return file instanceof TFile && file.extension === 'md';
+}
+
 export default class ReminderTelegramPlugin extends Plugin {
 	settings: ReminderTelegramSettings;
 	notificationState: NotificationState;
