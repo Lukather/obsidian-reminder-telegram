@@ -28,6 +28,10 @@ export interface VaultTask {
 	deadlineString: string | null;
 	originalLine: string;
 	source: 'inline' | 'frontmatter';
+	/** Frontmatter tags extracted from the note (frontmatter only; inline hashtags not parsed). */
+	tags: string[];
+	/** For frontmatter tasks, the line number of the first heading in the note (used for scroll-to-heading). */
+	headingLineNumber?: number;
 }
 
 export interface ScanSettings {
@@ -105,13 +109,13 @@ export function deadlineToDateString(deadline: Deadline | null): string | null {
 	return `${cd.year}-${String(cd.month).padStart(2, '0')}-${String(cd.day).padStart(2, '0')}`;
 }
 
-function compareCalendarDays(a: {year: number; month: number; day: number}, b: {year: number; month: number; day: number}): number {
+export function compareCalendarDays(a: {year: number; month: number; day: number}, b: {year: number; month: number; day: number}): number {
 	if (a.year !== b.year) return a.year - b.year;
 	if (a.month !== b.month) return a.month - b.month;
 	return a.day - b.day;
 }
 
-function addDaysToCalendarDay(day: {year: number; month: number; day: number}, days: number): {year: number; month: number; day: number} {
+export function addDaysToCalendarDay(day: {year: number; month: number; day: number}, days: number): {year: number; month: number; day: number} {
 	const d = new Date(day.year, day.month - 1, day.day);
 	d.setDate(d.getDate() + days);
 	return {year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate()};
@@ -202,6 +206,7 @@ export function parseTaskLine(
 		deadlineString: deadlineInfo.match,
 		originalLine: line,
 		source: 'inline',
+		tags: [],
 	};
 }
 
@@ -238,6 +243,7 @@ export function parseFrontmatterTasksFromCache(
 	const fileName = filePath.split('/').pop() || filePath;
 	const baseName = fileName.replace(/\.md$/, '');
 	let taskText = baseName;
+	let firstHeadingLine = 0;
 
 	const fileLines = content.split('\n');
 	const endLine = findFrontmatterEndLine(content);
@@ -245,6 +251,7 @@ export function parseFrontmatterTasksFromCache(
 		const line = fileLines[i]?.trim();
 		if (line?.startsWith('#')) {
 			taskText = line.replace(/^#+\s*/, '').trim();
+			firstHeadingLine = i + 1; // 1-based line number
 			break;
 		}
 	}
@@ -258,6 +265,12 @@ export function parseFrontmatterTasksFromCache(
 	if (deadline) {
 		const deadlinePart = deadlineToDateString(deadline) || '';
 		const stableId = `frontmatter:${filePath}:${deadlinePart}`;
+		const rawTags = frontmatter.tags as unknown;
+		const tags: string[] = Array.isArray(rawTags)
+			? rawTags.filter((t): t is string => typeof t === 'string')
+			: typeof rawTags === 'string'
+				? rawTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+				: [];
 
 		tasks.push({
 			id: stableId,
@@ -270,6 +283,8 @@ export function parseFrontmatterTasksFromCache(
 			deadlineString,
 			originalLine: formatFrontmatterSummary(frontmatter),
 			source: 'frontmatter',
+			tags,
+			headingLineNumber: firstHeadingLine || undefined,
 		});
 	}
 	return tasks;

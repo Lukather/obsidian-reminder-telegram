@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCAMPER Innovation Report — Reminder Telegram Plugin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --bg-elevated: #161922;
+            --bg-card: #1c1f2a;
+            --border: #252a38;
+            --text: #e6e9f0;
+            --text-muted: #8b91a7;
+            --text-subtle: #5c6278;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #34d399;
+            --success-glow: rgba(52, 211, 153, 0.12);
+            --warning: #fbbf24;
+            --warning-glow: rgba(251, 191, 36, 0.12);
+            --danger: #f87171;
+            --danger-glow: rgba(248, 113, 113, 0.12);
+            --ice-high: #34d399;
+            --ice-mid: #fbbf24;
+            --ice-low: #f87171;
+            --s: #6366f1;
+            --c: #a78bfa;
+            --a: #60a5fa;
+            --m: #2dd4bf;
+            --p: #fbbf24;
+            --e: #f87171;
+            --r: #fb923c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            padding: 6rem 2rem 4rem;
+            text-align: center;
+            overflow: hidden;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-light);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero-badge svg { width: 14px; height: 14px; }
+
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            max-width: 800px;
+            margin: 0 auto 1rem;
+        }
+
+        .hero h1 span { color: var(--accent-light); }
+
+        .hero p {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+            max-width: 560px;
+            margin: 0 auto 2rem;
+        }
+
+        .hero-meta {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            font-size: 0.875rem;
+            color: var(--text-subtle);
+        }
+
+        .hero-meta span { display: flex; align-items: center; gap: 0.4rem; }
+
+        /* Container */
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Section */
+        .section {
+            padding: 4rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section:last-child { border-bottom: none; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 700;
+            border-radius: 8px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Config Grid */
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .config-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: border-color 0.2s;
+        }
+
+        .config-card:hover { border-color: var(--accent); }
+
+        .config-card label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-subtle);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .config-card p {
+            font-size: 0.95rem;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* Letter Cards */
+        .letter-grid {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .letter-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .letter-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--letter-color, var(--accent));
+        }
+
+        .letter-header {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .letter-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .letter-name {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .letter-name span {
+            font-size: 0.875rem;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+
+        .letter-tools {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .chip-telegram { background: rgba(99, 102, 241, 0.12); color: var(--accent-light); }
+        .chip-ux { background: rgba(45, 212, 191, 0.12); color: #2dd4bf; }
+        .chip-temporal { background: rgba(251, 146, 60, 0.12); color: #fb923c; }
+
+        .letter-list {
+            padding: 1rem 1.5rem;
+        }
+
+        .letter-idea {
+            display: flex;
+            gap: 0.875rem;
+            padding: 0.875rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .letter-idea:last-child { border-bottom: none; padding-bottom: 0; }
+
+        .idea-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-subtle);
+            flex-shrink: 0;
+            width: 36px;
+            padding-top: 0.15rem;
+        }
+
+        .idea-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.15rem;
+        }
+
+        .idea-desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+
+        /* Screening */
+        .screening-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .screen-col {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .screen-col.retained { border-top: 3px solid var(--success); }
+        .screen-col.conditional { border-top: 3px solid var(--warning); }
+        .screen-col.removed { border-top: 3px solid var(--danger); }
+
+        .screen-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .screen-header.retained { color: var(--success); }
+        .screen-header.conditional { color: var(--warning); }
+        .screen-header.removed { color: var(--danger); }
+
+        .screen-header h3 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .screen-count {
+            margin-left: auto;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.15rem 0.5rem;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.06);
+        }
+
+        .screen-body { padding: 0.75rem 1.25rem; }
+
+        .screen-item {
+            padding: 0.65rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.82rem;
+            line-height: 1.6;
+        }
+
+        .screen-item:last-child { border-bottom: none; }
+
+        .screen-item strong {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .screen-item code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255,255,255,0.04);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.78rem;
+        }
+
+        /* ICE Table */
+        .ice-table-wrap {
+            margin-top: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .ice-table { width: 100%; border-collapse: collapse; }
+
+        .ice-table thead th {
+            background: rgba(255,255,255,0.03);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-subtle);
+            padding: 0.875rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ice-table tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            transition: background 0.15s;
+        }
+
+        .ice-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+        .ice-table tbody td {
+            padding: 0.875rem 1rem;
+            font-size: 0.85rem;
+            vertical-align: top;
+        }
+
+        .ice-col { font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center; }
+
+        .col-impact { color: var(--accent-light); }
+        .col-conf { color: var(--success); }
+        .col-ease { color: var(--text-muted); }
+        .col-ice { font-weight: 800; color: var(--ice-high); }
+
+        .idea-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .idea-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            background: rgba(99,102,241,0.1);
+            color: var(--accent-light);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .score-bar {
+            height: 4px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.6s ease;
+        }
+
+        .conditional-badge {
+            font-size: 0.7rem;
+            color: var(--warning);
+            font-style: italic;
+            margin-top: 0.25rem;
+        }
+
+        /* Report */
+        .report-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(99,102,241,0.04) 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .report-card h3 {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .report-card p, .report-card li {
+            font-size: 0.925rem;
+            color: var(--text-muted);
+            line-height: 1.75;
+        }
+
+        .report-card ul { padding-left: 1.25rem; margin: 0.75rem 0; }
+
+        .report-card li { margin-bottom: 0.35rem; }
+
+        .highlight-box {
+            background: var(--bg);
+            border-left: 3px solid var(--accent);
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        }
+
+        .highlight-box p {
+            font-size: 0.875rem !important;
+            color: var(--text) !important;
+            margin: 0;
+        }
+
+        .phase-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .phase-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .phase-card .phase-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-subtle);
+            margin-bottom: 0.35rem;
+        }
+
+        .phase-card .phase-ideas {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .phase-card .phase-meta {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+        }
+
+        /* Appendix */
+        .excluded-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .excluded-item:last-child { border-bottom: none; }
+
+        .excluded-id {
+            width: 36px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--danger);
+            flex-shrink: 0;
+        }
+
+        .excluded-reason {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+
+        /* Footer */
+        .page-footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-subtle);
+        }
+
+        /* Oracle Extensions */
+        .oracle-hero {
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.08) 0%, transparent 60%);
+            border-bottom: 1px solid var(--border);
+            padding: 4rem 2rem 3rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .oracle-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at center, rgba(251, 146, 60, 0.1) 0%, transparent 55%);
+            pointer-events: none;
+        }
+
+        .oracle-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 1rem;
+            background: rgba(251, 146, 60, 0.1);
+            border: 1px solid rgba(251, 146, 60, 0.25);
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fb923c;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.25rem;
+        }
+
+        .oracle-hero h2 {
+            font-size: clamp(1.6rem, 4vw, 2.5rem);
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+            max-width: 700px;
+            margin: 0 auto 0.75rem;
+        }
+
+        .oracle-hero p {
+            font-size: 1rem;
+            color: var(--text-muted);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        .verdict-box {
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.06) 0%, transparent 100%);
+            border: 1px solid rgba(251, 146, 60, 0.18);
+            border-radius: 14px;
+            padding: 1.5rem 2rem;
+            margin-top: 1.5rem;
+            position: relative;
+        }
+
+        .verdict-box::before {
+            content: '⚡';
+            position: absolute;
+            top: -0.7rem;
+            left: 1.5rem;
+            background: var(--bg-card);
+            padding: 0 0.5rem;
+            font-size: 1rem;
+        }
+
+        .verdict-box p {
+            font-size: 0.95rem;
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+        }
+
+        .severity-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.75rem;
+        }
+
+        .sev-high {
+            background: rgba(248, 113, 113, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
+
+        .sev-medium {
+            background: rgba(251, 191, 36, 0.12);
+            color: var(--warning);
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+
+        .sev-low {
+            background: rgba(96, 165, 250, 0.12);
+            color: #60a5fa;
+            border: 1px solid rgba(96, 165, 250, 0.2);
+        }
+
+        .oracle-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .oracle-card:hover { border-color: rgba(251, 146, 60, 0.3); }
+
+        .oracle-card h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .oracle-card .ice-compare {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin: 0.5rem 0 0.75rem;
+        }
+
+        .ice-pill {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .ice-original { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+        .ice-oracle { background: rgba(251, 146, 60, 0.12); color: #fb923c; }
+
+        .oracle-card p, .oracle-card li {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        .oracle-card ul { padding-left: 1.25rem; margin: 0.5rem 0; }
+
+        .oracle-card li { margin-bottom: 0.3rem; }
+
+        .delta-negative { color: var(--danger); font-weight: 600; }
+        .delta-positive { color: var(--success); font-weight: 600; }
+        .delta-neutral { color: var(--text-subtle); }
+
+        .oracle-table td, .oracle-table th { font-size: 0.82rem; }
+
+        .oracle-table .idea-name-oracle {
+            font-weight: 600;
+            color: var(--text);
+            display: block;
+        }
+
+        .oracle-table .idea-meta {
+            font-size: 0.75rem;
+            color: var(--text-subtle);
+            margin-top: 0.15rem;
+        }
+
+        .final-box {
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.06) 0%, transparent 100%);
+            border: 1px solid rgba(52, 211, 153, 0.18);
+            border-radius: 14px;
+            padding: 1.5rem 2rem;
+            margin-top: 1rem;
+        }
+
+        .final-box h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .emoji-bullet { margin-right: 0.4rem; }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 640px) {
+            .hero { padding: 4rem 1.25rem 3rem; }
+            .container { padding: 0 1.25rem; }
+            .section { padding: 2.5rem 0; }
+            .report-card { padding: 1.25rem; }
+            .phase-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l2.5 2.5L16 9"/></svg>
+            Scamper + ICE Innovation Sprint
+        </div>
+        <h1>Strategic Innovation Report<br><span>Reminder Telegram Plugin</span></h1>
+        <p>A systematic exploration of alternative channels, UX improvements, and smarter temporal logic powered by SCAMPER brainstorming and ICE prioritization.</p>
+        <div class="hero-meta">
+            <span>📋 16 Ideas Generated</span>
+            <span>🎯 8 Retained</span>
+            <span>📊 ICE Scored</span>
+            <span>📅 May 2026</span>
+        </div>
+    </header>
+
+    <main>
+
+        <!-- Stage 1 -->
+        <section class="section reveal">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-number">1</div>
+                    <h2 class="section-title">Goals &amp; Constraints</h2>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.95rem;">The sprint targeted three focus areas across the Obsidian plugin's delivery and user experience.</p>
+                <div class="config-grid">
+                    <div class="config-card">
+                        <label>Primary Goal</label>
+                        <p>Identify concrete improvements in alternative notification channels, UX interactions, and temporal logic for deadlines.</p>
+                    </div>
+                    <div class="config-card">
+                        <label>Budget</label>
+                        <p>Minimal to moderate — no external infrastructure. Works within Obsidian Plugin API limits.</p>
+                    </div>
+                    <div class="config-card">
+                        <label>Timeline</label>
+                        <p>2–8 weeks total, with features shippable incrementally in plugin-sized iterations.</p>
+                    </div>
+                    <div class="config-card">
+                        <label>Constraints</label>
+                        <p>Mobile-compatible, no persistent background processes beyond setInterval, single Telegram API transport.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stage 2 -->
+        <section class="section reveal">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-number">2</div>
+                    <h2 class="section-title">SCAMPER Brainstorming</h2>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">16 actionable ideas produced across all 7 dimensions, each mapped to a focus area.</p>
+                <div class="letter-grid">
+
+                    <!-- S -->
+                    <div class="letter-card" style="--letter-color: var(--s)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #6366f1, #4f46e5)">S</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Substitute <span>— What could be replaced?</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-telegram">Channel</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">S-1</span>
+                                <div>
+                                    <div class="idea-name">Webhook Relay Alternative</div>
+                                    <div class="idea-desc">Replace hard dependency on Telegram with a configurable webhook URL so notifications can be sent to Discord, Slack, n8n, or a custom endpoint using the same templating engine.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">S-2</span>
+                                <div>
+                                    <div class="idea-name">OS Native Notification Fallback</div>
+                                    <div class="idea-desc">Substitute Telegram with Obsidian's built-in Notification API as a zero-setup fallback channel when no bot token is configured.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- C -->
+                    <div class="letter-card" style="--letter-color: var(--c)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #a78bfa, #7c3aed)">C</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Combine <span>— What could merge?</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-telegram">Channel</span>
+                                <span class="chip chip-ux">UX</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">C-1</span>
+                                <div>
+                                    <div class="idea-name">Inline Action Buttons</div>
+                                    <div class="idea-desc">Combine outgoing reminder messages with interactive Telegram reply buttons (Snooze 1h, Mark Done, Dismiss) so the user can act without opening Obsidian.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">C-2</span>
+                                <div>
+                                    <div class="idea-name">Obsidian Reminders Plugin Bridge</div>
+                                    <div class="idea-desc">Combine with the community Reminders plugin by reading its data, avoiding duplicate task scanning and leveraging its existing scheduled-task index.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- A -->
+                    <div class="letter-card" style="--letter-color: var(--a)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #60a5fa, #2563eb)">A</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Adapt <span>— Cross-field borrowing</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-ux">UX</span>
+                                <span class="chip chip-temporal">Temporal</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">A-1</span>
+                                <div>
+                                    <div class="idea-name">Email-Style Snooze Patterns</div>
+                                    <div class="idea-desc">Adapt Gmail/Outlook snooze logic: configurable presets (1h, tomorrow 9am, next week) that store a <code>snoozedUntil</code> timestamp or rewrite the inline deadline.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">A-2</span>
+                                <div>
+                                    <div class="idea-name">Priority Inbox Adaptation</div>
+                                    <div class="idea-desc">Adapt the "priority inbox" pattern: rank due tasks by composite score (deadline proximity + file recency + custom priority frontmatter) so only the top N items notify.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- M -->
+                    <div class="letter-card" style="--letter-color: var(--m)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #2dd4bf, #0d9488)">M</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Modify <span>— Magnify / Minify / Scale</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-ux">UX</span>
+                                <span class="chip chip-temporal">Temporal</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">M-1</span>
+                                <div>
+                                    <div class="idea-name">Context-Rich Notifications</div>
+                                    <div class="idea-desc">Magnify Telegram messages to include a 2-sentence context block (extracted from the note body) plus a direct <code>obsidian://open?file=</code> deep link.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">M-2</span>
+                                <div>
+                                    <div class="idea-name">Dynamic Check Cadence</div>
+                                    <div class="idea-desc">Modify the fixed interval to a per-urgency schedule: every 30 min normally, every 5 min within 1h of a deadline, once daily for distant tasks.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">M-3</span>
+                                <div>
+                                    <div class="idea-name">Dedicated Sidebar View</div>
+                                    <div class="idea-desc">Magnify plugin visibility with a custom sidebar panel showing next reminders, snoozed, and overdue tasks. Click opens the file and scrolls to the task. Quick filters: today / week / tag.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- P -->
+                    <div class="letter-card" style="--letter-color: var(--p)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #fbbf24, #d97706)">P</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Put to Another Use<span>— Repurpose the mechanism</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-telegram">Channel</span>
+                                <span class="chip chip-ux">UX</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">P-1</span>
+                                <div>
+                                    <div class="idea-name">Habit Tracker Nudges</div>
+                                    <div class="idea-desc">Repurpose the reminder engine to send recurring daily/weekly habit nudges sourced from a dedicated <code>#habit</code> tag, unrelated to deadlines.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">P-2</span>
+                                <div>
+                                    <div class="idea-name">Telegram as Ingestion Inbox</div>
+                                    <div class="idea-desc">Reverse-use the bot: allow users to send messages to the bot, which appends them as tasks to a configurable daily note in Obsidian.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- E -->
+                    <div class="letter-card" style="--letter-color: var(--e)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #f87171, #dc2626)">E</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Eliminate <span>— Strip away friction</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-ux">UX</span>
+                                <span class="chip chip-temporal">Temporal</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">E-1</span>
+                                <div>
+                                    <div class="idea-name">Frictionless Bot Pairing</div>
+                                    <div class="idea-desc">Eliminate manual token/ChatID copy-paste by generating a QR code in settings that deeplinks to a Telegram auth flow or BotFather-like setup wizard.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">E-2</span>
+                                <div>
+                                    <div class="idea-name">Smart Duplicate Suppression</div>
+                                    <div class="idea-desc">Eliminate repeated notifications for the same overdue task by defaulting to a "notify once per day" policy rather than every check cycle.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- R -->
+                    <div class="letter-card" style="--letter-color: var(--r)">
+                        <div class="letter-header">
+                            <div class="letter-avatar" style="background: linear-gradient(135deg, #fb923c, #ea580c)">R</div>
+                            <div style="flex:1">
+                                <div class="letter-name">Reverse <span>— Flip the flow</span></div>
+                            </div>
+                            <div class="letter-tools">
+                                <span class="chip chip-telegram">Channel</span>
+                                <span class="chip chip-temporal">Temporal</span>
+                            </div>
+                        </div>
+                        <div class="letter-list">
+                            <div class="letter-idea">
+                                <span class="idea-id">R-1</span>
+                                <div>
+                                    <div class="idea-name">Pull-Based Task Query</div>
+                                    <div class="idea-desc">Reverse the push model: let the user message the Telegram bot <code>/today</code> to receive the current due-task list on demand instead of relying solely on scheduled pushes.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">R-2</span>
+                                <div>
+                                    <div class="idea-name">Anticipatory Early Warnings</div>
+                                    <div class="idea-desc">Reverse the "notify at deadline" logic: send early warnings at configurable advance intervals (1 day before, 1 hour before) shifting from reactive to proactive.</div>
+                                </div>
+                            </div>
+                            <div class="letter-idea">
+                                <span class="idea-id">R-3</span>
+                                <div>
+                                    <div class="idea-name">Reminder-First Authoring</div>
+                                    <div class="idea-desc">Reverse the workflow: command "Create task with reminder" opens a guided modal (text, date, destination file) that writes the task inline. Lowers entry barrier for new users who don't know the task syntax.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stage 3: Tier 1 -->
+        <section class="section reveal">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-number">3</div>
+                    <h2 class="section-title">Idea Screening — Tier 1</h2>
+                </div>
+                <div class="screening-grid">
+                    <div class="screen-col retained">
+                        <div class="screen-header retained">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            <h3>Retained</h3>
+                            <span class="screen-count">10</span>
+                        </div>
+                        <div class="screen-body">
+                            <div class="screen-item"><strong>S-1:</strong> Webhook Relay Alternative</div>
+                            <div class="screen-item"><strong>C-2:</strong> Obsidian Reminders Plugin Bridge</div>
+                            <div class="screen-item"><strong>A-1:</strong> Email-Style Snooze Patterns</div>
+                            <div class="screen-item"><strong>A-2:</strong> Priority Inbox Adaptation</div>
+                            <div class="screen-item"><strong>M-1:</strong> Context-Rich Notifications</div>
+                            <div class="screen-item"><strong>M-2:</strong> Dynamic Check Cadence</div>
+                            <div class="screen-item"><strong>M-3:</strong> Dedicated Sidebar View</div>
+                            <div class="screen-item"><strong>E-2:</strong> Smart Duplicate Suppression</div>
+                            <div class="screen-item"><strong>R-2:</strong> Anticipatory Early Warnings</div>
+                            <div class="screen-item"><strong>R-3:</strong> Reminder-First Authoring</div>
+                        </div>
+                    </div>
+                    <div class="screen-col conditional">
+                        <div class="screen-header conditional">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+                            <h3>Conditional</h3>
+                            <span class="screen-count">5</span>
+                        </div>
+                        <div class="screen-body">
+                            <div class="screen-item"><strong>S-2:</strong> Desktop Electron only; unreliable on mobile.</div>
+                            <div class="screen-item"><strong>C-1:</strong> Requires <code>getUpdates</code> polling; responses only while Obsidian is active.</div>
+                            <div class="screen-item"><strong>E-1:</strong> BotFather token creation remains manual; QR only eliminates ChatID step.</div>
+                            <div class="screen-item"><strong>P-2:</strong> Requires <code>getUpdates</code> polling; files processed only while Obsidian runs.</div>
+                            <div class="screen-item"><strong>R-1:</strong> Same polling dependency as C-1; commands only sync when app is active.</div>
+                        </div>
+                    </div>
+                    <div class="screen-col removed">
+                        <div class="screen-header removed">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            <h3>Removed</h3>
+                            <span class="screen-count">1</span>
+                        </div>
+                        <div class="screen-body">
+                            <div class="screen-item"><strong>P-1:</strong> Habit Tracker Nudges — Off-target habit-tracking category outside scoped goals.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stage 3: Tier 2 -->
+        <section class="section reveal">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-number"></div>
+                    <h2 class="section-title">ICE Scoring — Tier 2</h2>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1rem;">All Retained and Conditional ideas scored. Higher ICE = better immediate ROI within Obsidian's limits.</p>
+                <div class="ice-table-wrap">
+                    <table class="ice-table">
+                        <thead>
+                            <tr>
+                                <th>Idea</th>
+                                <th style="text-align:center">ICE</th>
+                                <th style="text-align:center">Impact</th>
+                                <th style="text-align:center">Conf.</th>
+                                <th style="text-align:center">Ease</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">R-2</span>Anticipatory Early Warnings</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:96%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">576</td>
+                                <td class="ice-col col-impact">8</td>
+                                <td class="ice-col col-conf">9</td>
+                                <td class="ice-col col-ease">8</td>
+                                <td>Extends existing deadline logic with offset tracking; proven pattern</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">E-2</span>Smart Duplicate Suppression</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:94%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">567</td>
+                                <td class="ice-col col-impact">7</td>
+                                <td class="ice-col col-conf">9</td>
+                                <td class="ice-col col-ease">9</td>
+                                <td>Near-trivial: change notifiedTasks key to include date stamp</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">S-1</span>Webhook Relay Alternative</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:65%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">392</td>
+                                <td class="ice-col col-impact">7</td>
+                                <td class="ice-col col-conf">8</td>
+                                <td class="ice-col col-ease">7</td>
+                                <td>Replaces hardcoded Telegram URL with configurable webhook; opens Slack/Discord/n8n</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">A-1</span>Email-Style Snooze Patterns</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:65%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">392</td>
+                                <td class="ice-col col-impact">7</td>
+                                <td class="ice-col col-conf">8</td>
+                                <td class="ice-col col-ease">7</td>
+                                <td>Well-established pattern; snoozedUntil field in notification state</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">R-3</span>Reminder-First Authoring</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:65%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">392</td>
+                                <td class="ice-col col-impact">7</td>
+                                <td class="ice-col col-conf">8</td>
+                                <td class="ice-col col-ease">7</td>
+                                <td>Guided modal writes task inline; lowers syntax barrier for new users</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">M-1</span>Context-Rich Notifications</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:64%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">384</td>
+                                <td class="ice-col col-impact">6</td>
+                                <td class="ice-col col-conf">8</td>
+                                <td class="ice-col col-ease">8</td>
+                                <td>Extract context lines below task; add obsidian:// deep link</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">M-2</span>Dynamic Check Cadence</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:36%;background:var(--ice-mid)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">216</td>
+                                <td class="ice-col col-impact">6</td>
+                                <td class="ice-col col-conf">6</td>
+                                <td class="ice-col col-ease">6</td>
+                                <td>Adjust interval based on nearest deadline; requires interval reset logic</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">M-3</span>Dedicated Sidebar View</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:75%;background:var(--ice-high)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">448</td>
+                                <td class="ice-col col-impact">8</td>
+                                <td class="ice-col col-conf">8</td>
+                                <td class="ice-col col-ease">7</td>
+                                <td>Custom view with dedup from scanner, click-to-scroll, quick filters</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">C-2</span>Obsidian Reminders Bridge</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:35%;background:var(--ice-mid)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">210</td>
+                                <td class="ice-col col-impact">5</td>
+                                <td class="ice-col col-conf">6</td>
+                                <td class="ice-col col-ease">7</td>
+                                <td>Read existing plugin data to avoid duplicate vault scans</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">A-2</span>Priority Inbox Adaptation</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:30%;background:var(--ice-mid)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">180</td>
+                                <td class="ice-col col-impact">6</td>
+                                <td class="ice-col col-conf">5</td>
+                                <td class="ice-col col-ease">6</td>
+                                <td>Composite scoring from frontmatter + recency; requires weight tuning</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">⚠️ E-1</span>Frictionless Bot Pairing</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:17%;background:var(--ice-mid)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">100</td>
+                                <td class="ice-col col-impact">4</td>
+                                <td class="ice-col col-conf">5</td>
+                                <td class="ice-col col-ease">5</td>
+                                <td>Conditional: QR code only; BotFather step remains manual</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">⚠️ S-2</span>OS Native Fallback</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:16%;background:var(--ice-low)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">96</td>
+                                <td class="ice-col col-impact">4</td>
+                                <td class="ice-col col-conf">4</td>
+                                <td class="ice-col col-ease">6</td>
+                                <td>Conditional: desktop Electron only; mobile WebViews unreliable</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">⚠️ C-1</span>Inline Action Buttons</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:16%;background:var(--ice-low)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">96</td>
+                                <td class="ice-col col-impact">8</td>
+                                <td class="ice-col col-conf">4</td>
+                                <td class="ice-col col-ease">3</td>
+                                <td>Conditional: requires polling; high impact but heavy infrastructure burden</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">⚠️ R-1</span>Pull-Based Task Query</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:16%;background:var(--ice-low)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">96</td>
+                                <td class="ice-col col-impact">6</td>
+                                <td class="ice-col col-conf">4</td>
+                                <td class="ice-col col-ease">4</td>
+                                <td>Conditional: same polling infrastructure as C-1; less file-write complexity</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="idea-cell"><span class="idea-tag">⚠️ P-2</span>Telegram as Ingestion Inbox</div>
+                                    <div class="score-bar"><div class="score-bar-fill" style="width:10%;background:var(--ice-low)"></div></div>
+                                </td>
+                                <td class="ice-col col-ice">60</td>
+                                <td class="ice-col col-impact">5</td>
+                                <td class="ice-col col-conf">4</td>
+                                <td class="ice-col col-ease">3</td>
+                                <td>Conditional: requires polling; robust parsing and daily-note insertion needed</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stage 4 -->
+        <section class="section reveal">
+            <div class="container">
+                <div class="section-header">
+                    <div class="section-number">4</div>
+                    <h2 class="section-title">Strategic Recommendation</h2>
+                </div>
+
+                <div class="report-card">
+                    <h3>💡 Innovation Insights</h3>
+                    <p>The most powerful breakthrough was <strong>inverting the notification flow from reactive → proactive</strong> (R-2). This transforms a "deadline alarm" into a "planning assistant," arguably changing the plugin's value proposition more than any single feature. Equally unexpected was discovering that <strong>Obsidian's limited mobile process lifetime became the plugin's strongest safeguard</strong> — ideas requiring bi-directional Telegram polling all cluster at the bottom of the ICE ranking, showing the path forward is smarter push scheduling rather than fighting platform limits. Finally, the webhook abstraction (S-1) proved to be a <strong>multiplicative feature</strong>: not just a Telegram alternative, but a universal notification adapter.</p>
+                </div>
+
+                <div class="report-card" style="margin-top: 1.5rem">
+                    <h3>🗺️ Execution Roadmap</h3>
+                    <div class="phase-grid">
+                        <div class="phase-card">
+                            <div class="phase-label">Phase 1 — Quick Wins</div>
+                            <div class="phase-ideas">E-2, R-2</div>
+                            <div class="phase-meta">ICE 567 &middot; 576 &middot; No new deps</div>
+                        </div>
+                        <div class="phase-card">
+                            <div class="phase-label">Phase 2 — UX Leaps</div>
+                            <div class="phase-ideas">M-1, A-1</div>
+                            <div class="phase-meta">ICE 384 &middot; 392 &middot; Richer UX</div>
+                        </div>
+                        <div class="phase-card">
+                            <div class="phase-label">Phase 3 — Platform</div>
+                            <div class="phase-ideas">S-1, M-2</div>
+                            <div class="phase-meta">ICE 392 &middot; 216 &middot; Multi-channel</div>
+                        </div>
+                        <div class="phase-card">
+                            <div class="phase-label">Optional — Future</div>
+                            <div class="phase-ideas">C-1, P-2, R-1</div>
+                            <div class="phase-meta">Conditional on polling infra</div>
+                        </div>
+                    </div>
+                    <div class="highlight-box">
+                        <p><strong>Phase 1 Strategy:</strong> Begin with E-2 and R-2 to solve immediate pain (notification spam &amp; missed deadlines) while building temporal infrastructure that A-1 will later reuse.</p>
+                    </div>
+                    <p style="margin-top: 1rem"><strong>Phase 2 Strategy:</strong> Layer M-1 (context blocks + deep links) and A-1 (snooze). Both reuse Phase 1 scheduling logic and together create a "smart inbox" feeling.</p>
+                    <p><strong>Phase 3 Strategy:</strong> Ship S-1 (webhook decoupling) and M-2 (dynamic cadence). Webhook expands addressable user base; cadence optimizes battery and API usage when paired with webhook delivery.</p>
+                    <p><strong>Risk Mitigation for Low-Confidence:</strong> Build <code>getUpdates</code> polling as an <em>off-by-default</em> experimental toggle. Validate the mechanism without destabilizing the push-only core. If adoption is low or battery complaints arise, it remains opt-in without regressing stability.</p>
+                </div>
+
+                <div class="report-card" style="margin-top: 1.5rem">
+                    <h3>🎯 Integrated Recommendation</h3>
+                    <div class="highlight-box" style="border-left-color: var(--success)">
+                        <p><strong>"Smart Reminder Platform" — R-2 + M-1 + A-1 + S-1</strong></p>
+                    </div>
+                    <p>The plugin evolves from a single-channel deadline pusher into an <strong>intelligent, multi-channel reminder system</strong>. Users configure advance-warning windows (R-2), and each notification carries rich task context with a direct Obsidian deep link (M-1). When a reminder fires, users can snooze it with preset options that skip checking until the chosen time (A-1). Power users replace Telegram with any webhook endpoint — Slack, Discord, n8n, custom — making the plugin agnostic to delivery channel (S-1). The temporal engine (advance warnings + snooze) and universal transport (webhook templates) are the two pillars.</p>
+
+                    <h3 style="margin-top: 1.5rem">💰 Resource Allocation</h3>
+                    <ul>
+                        <li><strong>Phase 1 (Weeks 1–2):</strong> ~20% effort — temporal infrastructure, anti-spam filter. Reuse existing scan logic.</li>
+                        <li><strong>Phase 2 (Weeks 3–5):</strong> ~35% effort — context extraction, snooze state management, settings UI.</li>
+                        <li><strong>Phase 3 (Weeks 6–8):</strong> ~35% effort — webhook transport abstraction, dynamic interval logic, template compatibility layer.</li>
+                        <li><strong>Experimental (TBD):</strong> ~10% buffer — polling infrastructure for C-1 / P-2 / R-1 if telemetry validates demand.</li>
+                    </ul>
+
+                    <h3 style="margin-top: 1.5rem">🚀 MVP / Downgraded Compromise</h3>
+                    <div class="highlight-box" style="border-left-color: var(--warning)">
+                        <p><strong>"Essential Deadline Intelligence" — R-2 + E-2 + M-1 (light)</strong></p>
+                    </div>
+                    <p>Shippable in ~1 week. Add configurable early-warning intervals (1 day, 1 hour) to the existing daily check loop. Deduplicate notifications per task per calendar day. Append a single <code>obsidian://open</code> link in Telegram messages. This MVP does not include snooze or webhook replacement, but immediately demonstrates the plugin becoming <em>smarter</em> not just <em>bigger</em>. Path to full solution: add snooze controls once users request it, then introduce webhook transport once channel-diversity requests accumulate.</p>
+                </div>
+
+                <div class="report-card" style="margin-top: 1.5rem">
+                    <h3>🗑️ Appendix: Considered but Excluded</h3>
+                    <div style="margin-top: 1rem">
+                        <div class="excluded-item">
+                            <span class="excluded-id">P-1</span>
+                            <span class="excluded-reason"><strong>Habit Tracker Nudges</strong> — Off-target: habit tracking is a separate product category outside the scoped innovation areas (Telegram alternatives, UX, temporal logic). Would compete with dedicated habit plugins and dilute the plugin's core identity.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+        <!-- Oracle Second Opinion -->
+        <section class="section reveal" style="border-top: 2px solid rgba(251,146,60,0.15)">
+            <div class="container">
+
+                <!-- Oracle Hero -->
+                <div class="oracle-hero" style="margin: 0 -2rem 3rem; padding: 4rem 2rem">
+                    <div class="oracle-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                        Oracle Second Opinion
+                    </div>
+                    <h2>Adversarial Review:<br><span style="color: #fb923c">Where the Plan Is Wrong</span></h2>
+                    <p>A senior product strategist stress-tests the SCAMPER plan for hidden assumptions, optimistic effort estimates, and missed risks.</p>
+
+                    <div class="verdict-box" style="max-width: 720px; margin: 1.5rem auto 0">
+                        <p><strong style="color: #fb923c">Verdict:</strong> Directionally sound but <strong>dangerously optimistic on effort</strong>, systematically <strong>underscoring bi-directional Telegram features</strong> behind an unvalidated mobile constraint, and overlooking a <strong>looming UX complexity catastrophe</strong> from stacking temporal features without mental-model governance.</p>
+                    </div>
+                </div>
+
+                <!-- High Severity Critiques -->
+                <div class="section-header" style="margin-top: 2rem">
+                    <div class="section-number" style="background: linear-gradient(135deg, #f87171, #dc2626)">!</div>
+                    <h2 class="section-title">🔥 High Severity Critiques</h2>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-high">🔥 Overstated Confidence</div>
+                    <h4>R-2 — Anticipatory Early Warnings <span style="color: var(--text-muted); font-weight: 400">(Original ICE 576)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 576 (8×9×8)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 288 (8×6×6)</span>
+                        <span class="delta-negative">−288</span>
+                    </div>
+                    <p>Confidence 9 is unjustified. No evidence users want advance notifications — the plugin's value prop is "notify when due." A user with 30 tasks gets <strong>60 notifications</strong> (30 early + 30 actual). The existing <code>maxTasksPerCheck: 10</code> proves the authors already know volume is a problem. R-2 amplifies the exact pain E-2 tries to solve.</p>
+                    <p style="margin-top: 0.5rem">Ease 8 → 6: <code>notifiedTasks</code> needs a new dimension — not just "was notified" but "which warning level was sent." Schema migration for existing state.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-high">🔥 Scope Underestimation</div>
+                    <h4>E-2 — Smart Duplicate Suppression <span style="color: var(--text-muted); font-weight: 400">(Original ICE 567)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 567 (7×9×9)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 378 (7×9×6)</span>
+                        <span class="delta-negative">−189</span>
+                    </div>
+                    <p>"Near trivial" masks real complexity. What is a "calendar day"? A user in Tokyo flies to New York — their day shifts 13 hours. Do you track UTC day? Local device day? The current key <code>notified:${task.id}:${deadlineDate}</code> needs date-component semantics and explicit timezone policy. Requires testing across date boundaries and likely a settings toggle.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-high">🔥 Phantom Constraint</div>
+                    <h4>C-1, P-2, R-1 — Bi-Directional Telegram <span style="color: var(--text-muted); font-weight: 400">(Original ICE 60–96, Conditional)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 60–96 (Conditional)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 180–320 (Desktop viable)</span>
+                        <span class="delta-positive">+120 to +224</span>
+                    </div>
+                    <p>The report dismisses all three because "<code>getUpdates</code> polling only works while Obsidian is active." This conflates mobile background limits with desktop reality. Power users — the target market — are on desktop. A 30-second HTTP poll with <code>offset</code> is trivial; the plugin <em>already</em> runs a check loop.</p>
+                    <p style="margin-top: 0.5rem"><strong>C-1 re-score:</strong> ICE ~320 (8×6×7) desktop-only, experimental toggle. <strong>R-1 re-score:</strong> ICE ~280 (6×6×8). These should be Phase 2 for desktop users, not buried.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-high">🔥 Hidden Dependency</div>
+                    <h4>A-1 — Email-Style Snooze <span style="color: var(--text-muted); font-weight: 400">(Original ICE 392)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 392 (7×8×7)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 294 (7×7×6)</span>
+                        <span class="delta-negative">−98</span>
+                    </div>
+                    <p>The report claims snooze "reuses R-2 advance-warning scheduling logic." But R-2 hasn't shipped, and snooze is <em>harder</em>: where do you store <code>snoozedUntil</code>? In notification state (invisible in the note) or rewrite the file inline (new file-I/O capability with conflict risk)? The plugin currently <em>never</em> modifies vault files. Adding writes is a major expansion.</p>
+                </div>
+
+                <!-- Medium Severity Critiques -->
+                <div class="section-header" style="margin-top: 3rem">
+                    <div class="section-number" style="background: linear-gradient(135deg, #fbbf24, #d97706)">!</div>
+                    <h2 class="section-title">⚠️ Medium Severity Critiques</h2>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ Integration Complexity</div>
+                    <h4>S-1 — Webhook Relay Alternative <span style="color: var(--text-muted); font-weight: 400">(Original ICE 392)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 392 (7×8×7)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 224 (7×7×5)</span>
+                        <span class="delta-negative">−168</span>
+                    </div>
+                    <p>"Replace hardcoded Telegram URL" sounds like a config change. It isn't. Discord wants <code>{"content": "..."}</code>, Slack wants <code>{"text": "..."}</code>, n8n wants raw POST body. The current template system ({taskName}, {deadline}) is string interpolation, not JSON. You need per-provider presets or a JSON body editor. Also: webhook URLs are secrets — do you mask them in logs like tokens?</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ Parser Assumption</div>
+                    <h4>M-1 — Context-Rich Notifications <span style="color: var(--text-muted); font-weight: 400">(Original ICE 384)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 384 (6×8×8)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 288 (6×8×6)</span>
+                        <span class="delta-negative">−96</span>
+                    </div>
+                    <p>"Extract 2–3 lines below the task" assumes the scanner has line-context awareness. The current <code>VaultTask</code> stores <code>originalLine</code> but not surrounding lines. You'd need to keep file handles open or parse entire files into arrays — non-trivial scanner refactoring.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ Underscored</div>
+                    <h4>A-2 — Priority Inbox Adaptation <span style="color: var(--text-muted); font-weight: 400">(Original ICE 180)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 180 (6×5×6)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 384 (8×8×6)</span>
+                        <span class="delta-positive">+204</span>
+                    </div>
+                    <p>Buried because treated as unproven. Users <em>already</em> use frontmatter metadata (<code>priority</code>, <code>due</code>). The math is trivial: <code>score = daysUntilDeadline * w1 + daysSinceModified * w2 + priorityValue * w3</code>. Impact 6→8: transforms a flat dump into "do this first." Confidence 5→8: proven pattern in every email client, task manager, issue tracker. <strong>This should be Phase 2, not bottom of the heap.</strong></p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ Solves Non-Problem</div>
+                    <h4>M-2 — Dynamic Check Cadence <span style="color: var(--text-muted); font-weight: 400">(Original ICE 216)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 216 (6×6×6)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 108 (6×4×5)</span>
+                        <span class="delta-negative">−108</span>
+                    </div>
+                    <p>"Check every 5 min near deadlines" only matters <em>while Obsidian is open</em> — when users are actively working and least need aggressive checking. If Obsidian is closed, cadence is irrelevant. Adds interval recalculation complexity for cosmetic benefit. Defer or cut.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ Negative Value Risk</div>
+                    <h4>C-2 — Obsidian Reminders Plugin Bridge <span style="color: var(--text-muted); font-weight: 400">(Original ICE 210, Retained)</span></h4>
+                    <p>Should be <strong>Removed</strong>, not Retained. The Reminders plugin has no API stability guarantee. Format changes break your bridge for all users who enabled it. You're coupling reliability to a dependency you don't control. Better: make your own scanning fast enough that duplication doesn't matter.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ Slightly Optimistic on Ease</div>
+                    <h4>M-3 — Dedicated Sidebar View <span style="color: var(--text-muted); font-weight: 400">(Original ICE 448)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 448 (8×8×7)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 384 (8×8×6)</span>
+                        <span class="delta-negative">−64</span>
+                    </div>
+                    <p>Strong idea. Custom views are a core Obsidian pattern and the click-to-scroll interaction transforms the plugin from background utility to visible workspace tool. However, Ease 7 → 6: click-to-scroll positioning in Obsidian's editor requires <code>leaf.setEphemeralState({ line })</code> which has edge cases with folding, live preview, and Canvas notes. Also, the sidebar must stay in sync with the scanner's deduplication logic — a shared state layer is needed between notification engine and view.</p>
+                </div>
+
+                <div class="oracle-card">
+                    <div class="severity-badge sev-medium">⚠️ File-Write Risk</div>
+                    <h4>R-3 — Reminder-First Authoring <span style="color: var(--text-muted); font-weight: 400">(Original ICE 392)</span></h4>
+                    <div class="ice-compare">
+                        <span class="ice-pill ice-original">Original: 392 (7×8×7)</span>
+                        <span style="color: var(--text-subtle)">→</span>
+                        <span class="ice-pill ice-oracle">Oracle: 336 (7×8×6)</span>
+                        <span class="delta-negative">−56</span>
+                    </div>
+                    <p>Excellent for adoption — removes the need to learn task syntax. But Ease 7 → 6: writing to a user's file on their behalf needs conflict handling. What if the file is open and has unsaved changes? What if the destination path doesn't exist? The modal also needs a file picker (Obsidian's <code>suggestModal</code> for vault paths) which is straightforward but adds UI complexity. Still, this is a high-value onboarding feature that competitors lack.</p>
+                </div>
+
+                <!-- Missing Risks -->
+                <div class="section-header" style="margin-top: 3rem">
+                    <div class="section-number" style="background: #5c6278">?</div>
+                    <h2 class="section-title">Missing Risks Entirely</h2>
+                </div>
+
+                <div class="report-card">
+                    <div class="letter-grid" style="margin-top: 0; gap: 0.75rem">
+                        <div class="letter-card" style="--letter-color: var(--danger)">
+                            <div class="letter-list" style="padding: 1rem 1.25rem">
+                                <div class="letter-idea" style="padding: 0.6rem 0">
+                                    <span class="idea-id" style="color: var(--danger); width: auto; margin-right: 0.5rem">Testing</span>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted)">How do you test "notify 1 day before"? Mock system time? Wait 24 hours? Real engineering cost never budgeted.</div>
+                                </div>
+                                <div class="letter-idea" style="padding: 0.6rem 0; border-bottom: none">
+                                    <span class="idea-id" style="color: var(--danger); width: auto; margin-right: 0.5rem">State Migration</span>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted)"><code>notifiedTasks</code> format changes (E-2, R-2, A-1) need migration code. Old plugin data must load without crashing.</div>
+                                </div>
+                                <div class="letter-idea" style="padding: 0.6rem 0; border-bottom: none">
+                                    <span class="idea-id" style="color: var(--danger); width: auto; margin-right: 0.5rem">Feature Interaction</span>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted)">R-2 + E-2 + A-1 + M-2 creates a matrix. "I snoozed it, then the day changed — do I get another?" Each pair needs a rule.</div>
+                                </div>
+                                <div class="letter-idea" style="padding: 0.6rem 0; border-bottom: none">
+                                    <span class="idea-id" style="color: var(--danger); width: auto; margin-right: 0.5rem">Support Burden</span>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted)">Users will file "why didn't I get notified?" The answer: snooze + daily suppression + cadence all interacted opaquely.</div>
+                                </div>
+                                <div class="letter-idea" style="padding: 0.6rem 0; border-bottom: none">
+                                    <span class="idea-id" style="color: var(--danger); width: auto; margin-right: 0.5rem">Backward Compatibility</span>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted)">R-2 changes default behavior on upgrade. Users get new notification types without opting in. Default-off is safer.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Oracle Revised Priority Table -->
+                <div class="section-header" style="margin-top: 3rem">
+                    <div class="section-number" style="background: linear-gradient(135deg, #fb923c, #ea580c)">📊</div>
+                    <h2 class="section-title" style="font-size: 1.25rem">Oracle's Revised Priority</h2>
+                </div>
+
+                <div class="ice-table-wrap oracle-table">
+                    <table class="ice-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Idea</th>
+                                <th style="text-align:center">Oracle ICE</th>
+                                <th style="text-align:center">Orig. ICE</th>
+                                <th>Delta</th>
+                                <th>Key Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span style="color: var(--success); font-weight: 700">1</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">A-2: Priority Inbox</span>
+                                    <span class="idea-meta">Uses existing frontmatter, trivial logic</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--success)">384</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">180</td>
+                                <td class="delta-positive">+204</td>
+                                <td>Impact 6→8, Conf 5→8</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--success); font-weight: 700">1</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">M-3: Sidebar View</span>
+                                    <span class="idea-meta">Custom view with click-to-scroll</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--success)">384</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">448</td>
+                                <td class="delta-negative">−64</td>
+                                <td>Ease 7→6; scroll positioning edge cases</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--success); font-weight: 700">2</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">E-2: Duplicate Suppression</span>
+                                    <span class="idea-meta">Timezone/day-boundary is real work</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--success)">378</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">567</td>
+                                <td class="delta-negative">−189</td>
+                                <td>Ease 9→6</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--warning); font-weight: 700">3</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">A-1: Email Snooze</span>
+                                    <span class="idea-meta">Depends on unbuilt R-2 infra</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--warning)">294</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">392</td>
+                                <td class="delta-negative">−98</td>
+                                <td>Conf 8→7, Ease 7→6</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--warning); font-weight: 700">4</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">R-2: Early Warnings</span>
+                                    <span class="idea-meta">Spam risk, unvalidated demand</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--warning)">288</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">576</td>
+                                <td class="delta-negative">−288</td>
+                                <td>Conf 9→6, Ease 8→6</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--warning); font-weight: 700">5</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">M-1: Context Notifications</span>
+                                    <span class="idea-meta">Scanner needs context awareness</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--warning)">288</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">384</td>
+                                <td class="delta-negative">−96</td>
+                                <td>Ease 8→6</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--text-muted); font-weight: 700">6</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">C-1: Inline Buttons (desktop)</span>
+                                    <span class="idea-meta">Reclassified from Conditional</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--text-muted)">~320</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">96</td>
+                                <td class="delta-positive">+224</td>
+                                <td>Desktop-only, experimental</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--text-muted); font-weight: 700">7</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">R-3: Reminder-First Authoring</span>
+                                    <span class="idea-meta">Lowers adoption barrier</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--text-muted)">336</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">392</td>
+                                <td class="delta-negative">−56</td>
+                                <td>Ease 7→6; file-write conflict risk</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--text-muted); font-weight: 700">7</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">R-1: Pull Query (desktop)</span>
+                                    <span class="idea-meta">Simpler than C-1, no file writes</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--text-muted)">~280</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">96</td>
+                                <td class="delta-positive">+184</td>
+                                <td>Desktop-only, experimental</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--text-muted); font-weight: 700">8</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">S-1: Webhook Relay</span>
+                                    <span class="idea-meta">Per-provider payload shapes</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--text-muted)">224</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">392</td>
+                                <td class="delta-negative">−168</td>
+                                <td>Ease 7→5</td>
+                            </tr>
+                            <tr>
+                                <td><span style="color: var(--danger); font-weight: 700">9</span></td>
+                                <td>
+                                    <span class="idea-name-oracle">M-2: Dynamic Cadence</span>
+                                    <span class="idea-meta">Solves non-problem</span>
+                                </td>
+                                <td class="ice-col col-ice" style="color: var(--danger)">108</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">216</td>
+                                <td class="delta-negative">−108</td>
+                                <td>Conf 6→4, Ease 6→5</td>
+                            </tr>
+                            <tr style="opacity: 0.5">
+                                <td><span style="color: var(--text-subtle); font-weight: 700">—</span></td>
+                                <td>
+                                    <span class="idea-name-oracle" style="text-decoration: line-through">C-2: Reminders Bridge</span>
+                                    <span class="idea-meta">Third-party coupling trap</span>
+                                </td>
+                                <td class="ice-col" style="color: var(--text-subtle)">Removed</td>
+                                <td class="ice-col" style="color: var(--text-subtle)">210</td>
+                                <td class="delta-neutral">—</td>
+                                <td>Negative value risk</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Oracle Roadmap -->
+                <div class="section-header" style="margin-top: 3rem">
+                    <div class="section-number" style="background: linear-gradient(135deg, #34d399, #059669)">🛣️</div>
+                    <h2 class="section-title" style="font-size: 1.25rem">Oracle's Execution Roadmap</h2>
+                </div>
+
+                <div class="report-card">
+                    <h3>Phase 0: Prototype Validation (2 days)</h3>
+                    <ul>
+                        <li>Prototype <code>getUpdates</code> polling on desktop. Measure CPU, test with 30-second intervals.</li>
+                        <li>If negligible, reclassify C-1, R-1, P-2 as Retained for desktop.</li>
+                        <li>Survey 3–5 users: Do they want advance warnings, or is "notify when due" sufficient?</li>
+                    </ul>
+                </div>
+
+                <div class="report-card" style="margin-top: 1rem">
+                    <h3>Phase 1: Foundation (Week 1)</h3>
+                    <div class="phase-grid">
+                        <div class="phase-card">
+                            <div class="phase-label">Ship First</div>
+                            <div class="phase-ideas">M-3 + A-2 + E-2</div>
+                            <div class="phase-meta">ICE 448 &middot; 384 &middot; 378 &middot; Low uncertainty</div>
+                        </div>
+                    </div>
+                    <ul style="margin-top: 1rem">
+                        <li><strong>M-3:</strong> Dedicated sidebar view with next reminders, snoozed, overdue. Click opens file and scrolls to task. Quick filters today/week/tag.</li>
+                        <li><strong>A-2:</strong> Priority Inbox ranking. Uses existing frontmatter, zero new dependencies.</li>
+                        <li><strong>E-2:</strong> Duplicate suppression with explicit timezone policy. Document day-boundary behavior in settings.</li>
+                    </ul>
+                </div>
+
+                <div class="report-card" style="margin-top: 1rem">
+                    <h3>Phase 2: Richer UX (Weeks 2–3)</h3>
+                    <div class="phase-grid">
+                        <div class="phase-card">
+                            <div class="phase-label">Layer Next</div>
+                            <div class="phase-ideas">M-1 + R-2 + R-3</div>
+                            <div class="phase-meta">ICE 288 &middot; 288 &middot; 336 &middot; Default-off</div>
+                        </div>
+                    </div>
+                    <ul style="margin-top: 1rem">
+                        <li><strong>M-1:</strong> Context extraction + deep links. Refactor scanner for line-context awareness.</li>
+                        <li><strong>R-2:</strong> Early warnings, <strong>default off</strong>, with per-task opt-in via frontmatter (<code>advance_warning: 1d</code>). Avoids spamming users who don't want it.</li>
+                        <li><strong>R-3:</strong> Reminder-first authoring command with guided modal. Lowers syntax barrier for new users; adds file-write capability.</li>
+                    </ul>
+                </div>
+
+                <div class="report-card" style="margin-top: 1rem">
+                    <h3>Phase 3: Channel Expansion (Week 4)</h3>
+                    <div class="phase-grid">
+                        <div class="phase-card">
+                            <div class="phase-label">Platform</div>
+                            <div class="phase-ideas">S-1</div>
+                            <div class="phase-meta">ICE 224 &middot; Per-provider presets</div>
+                        </div>
+                    </div>
+                    <ul style="margin-top: 1rem">
+                        <li><strong>S-1:</strong> Webhook relay with per-provider presets (Telegram, Discord, Slack, Generic JSON). Not just a URL swap.</li>
+                    </ul>
+                </div>
+
+                <div class="report-card" style="margin-top: 1rem">
+                    <h3>Phase 4: Interactivity (Weeks 5–6, desktop-only experimental)</h3>
+                    <div class="phase-grid">
+                        <div class="phase-card">
+                            <div class="phase-label">Experimental</div>
+                            <div class="phase-ideas">R-1 → C-1</div>
+                            <div class="phase-meta">Requires validated polling infra</div>
+                        </div>
+                    </div>
+                    <ul style="margin-top: 1rem">
+                        <li><strong>R-1:</strong> <code>/today</code> bot command. Requires <code>getUpdates</code> infrastructure.</li>
+                        <li><strong>C-1:</strong> Inline buttons (Snooze, Done). Requires R-1 infra + file-write capability for "Mark Done."</li>
+                    </ul>
+                </div>
+
+                <div class="final-box" style="margin-top: 1.5rem">
+                    <h4><span class="emoji-bullet">✅</span> Build First: M-3 + A-2 + E-2</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-muted)">Three high-ICE ideas with low uncertainty and no hidden dependencies. The sidebar (M-3) gives users immediate visibility, Priority Inbox (A-2) gives them order, and duplicate suppression (E-2) stops the spam. Together they prove the plugin can get smarter without getting more complex.</p>
+                </div>
+
+                <div class="final-box" style="border-color: rgba(251, 146, 60, 0.18)">
+                    <h4 style="color: #fb923c"><span class="emoji-bullet">⚡</span> Invest 2 Days: Prototype getUpdates</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-muted)">If desktop polling is negligible, you unlock C-1 (highest user-delight feature) and R-1. Do not dismiss based on theoretical mobile constraints.</p>
+                </div>
+
+                <div class="final-box" style="border-color: rgba(248, 113, 113, 0.18)">
+                    <h4 style="color: var(--danger)"><span class="emoji-bullet">🚫</span> Do Not Ship Together</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-muted)">R-2 + A-1 + E-2 + M-2 in one release creates support hell. Users won't understand why they did or didn't get notified. Either ship R-2 default-off, or ship A-1 first and gather feedback.</p>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="page-footer">
+        Generated by SCAMPER Agent &middot; ICE Scored &middot; 16 Ideas &middot; 15 Survived Screening &middot; Oracle Reviewed &middot; 13 Prioritized for Execution
+    </footer>
+
+    <script>
+        // Scroll reveal
+        const reveals = document.querySelectorAll('.reveal');
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.08 });
+        reveals.forEach(r => revealObserver.observe(r));
+
+        // Animate score bars after reveal
+        const bars = document.querySelectorAll('.score-bar-fill');
+        bars.forEach(bar => {
+            const target = bar.style.width;
+            bar.style.width = '0%';
+            setTimeout(() => { bar.style.width = target; }, 100);
+        });
+    </script>
+</body>
+</html>
