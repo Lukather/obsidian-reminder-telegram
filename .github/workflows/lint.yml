@@ -58,7 +58,7 @@ jobs:
           if ! git diff --quiet manifest.json; then
             git add manifest.json
             git commit -m "chore: bump version to ${VERSION} [skip ci]"
-            git push
+            git push origin HEAD:refs/heads/main
           else
             echo "La versione era già aggiornata."
           fi
