@@ -259,6 +259,11 @@ interface TelegramSendResult {
 - `version-bump.mjs`: Automates version bumping in manifest.json and versions.json
 - GitHub releases: Tag must match manifest.json version (no `v` prefix)
 
+## File Organization
+
+### AI-Generated Files
+All files that are not strictly useful to the plugin but just AI-generated (like plans, summaries, reviews, etc.) must be in the `.ai/` folder. This keeps the repository clean and focused on actual plugin code.
+
 ## Coding Conventions
 
 - **TypeScript**: Strict mode, explicit types
