@@ -44,24 +44,14 @@ jobs:
       - name: Update version in manifest.json
         run: |
           VERSION=${{ github.ref_name }}
-
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
+      
           if [ ! -f "manifest.json" ]; then
             echo "Errore: manifest.json non trovato!"
             exit 1
           fi
-
+      
           jq --arg v "$VERSION" '.version = $v' manifest.json > tmp.json && mv tmp.json manifest.json
-
-          if ! git diff --quiet manifest.json; then
-            git add manifest.json
-            git commit -m "chore: bump version to ${VERSION} [skip ci]"
-            git push origin HEAD:refs/heads/main
-          else
-            echo "La versione era già aggiornata."
-          fi
+          echo "manifest.json aggiornato a ${VERSION}"
       - run: npm ci
       - run: npm run build --if-present
       - name: Generate provenance attestation for main.js
