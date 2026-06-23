@@ -43,6 +43,20 @@ interface ReminderTelegramSettings {
 }
 ```
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues. See `.ai/issue-tracker.md`.
+
+### Triage labels
+
+Uses default label names (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `.ai/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout — one `CONTEXT.md` at repo root. See `.ai/domain.md`.
+
 ## Commands
 
 | ID | Name |
