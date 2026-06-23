@@ -47,6 +47,17 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		bulk: HTMLElement;
 		test: HTMLElement;
 	};
+	private saveTimer: ReturnType<typeof setTimeout> | null = null;
+	private readonly SAVE_DEBOUNCE_MS = 500;
+
+	/** Debounced save for text/textarea inputs that fire onChange on every keystroke. */
+	private debouncedSave(): void {
+		if (this.saveTimer) clearTimeout(this.saveTimer);
+		this.saveTimer = setTimeout(() => {
+			this.saveTimer = null;
+			void this.plugin.saveSettings();
+		}, this.SAVE_DEBOUNCE_MS);
+	}
 	constructor(app: App, plugin: ReminderTelegramPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -69,7 +80,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.telegramBotToken)
 					.onChange(async (value): Promise<void> => {
 						this.plugin.settings.telegramBotToken = value;
-						await this.plugin.saveSettings();
+						this.debouncedSave();
 					});
 				text.inputEl.type = 'password';
 			});
@@ -82,7 +93,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.telegramChatId)
 					.onChange(async (value): Promise<void> => {
 						this.plugin.settings.telegramChatId = value;
-						await this.plugin.saveSettings();
+						this.debouncedSave();
 					});
 				text.inputEl.type = 'password';
 			});
@@ -93,7 +104,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.notificationsEnabled)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.notificationsEnabled = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 				}));
 		new Setting(containerEl)
 			.setName('Check interval (minutes)')
@@ -104,7 +115,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.onChange(async (value): Promise<void> => {
 					const numValue = parseInt(value) || 30;
 					this.plugin.settings.checkIntervalMinutes = numValue;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 				}));
 		new Setting(containerEl)
 			.setName('Max tasks per check')
@@ -115,7 +126,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.onChange(async (value): Promise<void> => {
 					const n = parseInt(value, 10);
 					this.plugin.settings.maxTasksPerCheck = Number.isFinite(n) && n >= 1 ? n : DEFAULT_SETTINGS.maxTasksPerCheck;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 				}));
 
 		new Setting(containerEl)
@@ -125,7 +136,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.upcomingRemindersEnabled)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.upcomingRemindersEnabled = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 				}));
 
 		new Setting(containerEl)
@@ -137,7 +148,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.onChange(async (value): Promise<void> => {
 					const n = parseInt(value, 10);
 					this.plugin.settings.upcomingRemindersDaysAhead = Number.isFinite(n) && n >= 0 ? n : DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 				}));
 		containerEl.createEl('hr');
 		new Setting(containerEl)
@@ -149,7 +160,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				dropdown.setValue(this.plugin.settings.scanMode);
 				dropdown.onChange(async (value: 'whole-vault' | 'specific-folder'): Promise<void> => {
 					this.plugin.settings.scanMode = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 					this.display();
 				});
 			});
@@ -162,7 +173,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.targetFolder)
 					.onChange(async (value): Promise<void> => {
 						this.plugin.settings.targetFolder = value;
-						await this.plugin.saveSettings();
+						this.debouncedSave();
 					}));
 		}
 		containerEl.createEl('hr');
@@ -183,7 +194,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.bulkMessageTemplate)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.bulkMessageTemplate = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 					this.updateTemplatePreviews();
 				});
 			text.inputEl.addClass('reminder-telegram-template-textarea');
@@ -202,7 +213,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.individualMessageTemplate)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.individualMessageTemplate = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 					this.updateTemplatePreviews();
 				});
 			text.inputEl.addClass('reminder-telegram-template-textarea');
@@ -221,7 +232,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.testMessageTemplate)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.testMessageTemplate = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 					this.updateTemplatePreviews();
 				});
 			text.inputEl.addClass('reminder-telegram-template-textarea');
@@ -236,7 +247,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.livePreviewEnabled)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.livePreviewEnabled = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 					this.updateTemplatePreviews();
 				}));
 
@@ -248,7 +259,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.useMarkdownFormatting)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.useMarkdownFormatting = value;
-					await this.plugin.saveSettings();
+					this.debouncedSave();
 					this.updateTemplatePreviews();
 				}));
 
@@ -356,16 +367,16 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 	private renderCharacterCounter(container: HTMLElement, template: string): void {
 		const counterContainer = container.createDiv({cls: 'reminder-telegram-character-counter'});
 		const counter = counterContainer.createSpan({cls: 'reminder-telegram-character-count'});
-		
+		const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
+
 		const updateCounter = () => {
-			const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
 			if (textarea instanceof HTMLTextAreaElement) {
 				const length = textarea.value.length;
 				const maxLength = 4096; // Telegram message limit
 				const percentage = Math.min(100, Math.round((length / maxLength) * 100));
-				
+
 				counter.textContent = `${length}/${maxLength} characters (${percentage}%)`;
-				
+
 				// Add warning class if approaching limit
 				if (percentage >= 80) {
 					counterContainer.addClass('reminder-telegram-character-warning');
@@ -374,12 +385,11 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				}
 			}
 		};
-		
+
 		// Initial update
 		updateCounter();
-		
+
 		// Update on input
-		const textarea = container.querySelector('textarea.reminder-telegram-template-textarea');
 		if (textarea) {
 			textarea.addEventListener('input', updateCounter);
 			textarea.addEventListener('change', updateCounter);

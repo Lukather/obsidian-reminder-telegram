@@ -23,3 +23,8 @@ data.json
 
 # AI context files
 .ai/
+
+# Test coverage reports
+reports/
+nul
+PLAN.md

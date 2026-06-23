@@ -328,7 +328,7 @@ Pull requests are welcome! Please open an issue first for significant changes.
 
 ## License
 
-This plugin is licensed under the GNU General Public License version 3 (GPLv3). See [LICENSE](LICENSE) for details.
+This plugin is licensed under the BSD-0-Clause License. See [LICENSE](LICENSE) for details.
 
 ## Credits
 

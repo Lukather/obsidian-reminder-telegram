@@ -244,7 +244,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.cleanupInterval = (): void => {
 			window.clearInterval(intervalId);
 		};
-		void this.manualCheck();
+		// ponytail: no auto-check here — onload() calls manualCheck() once at startup.
+		// Re-checking on every settings change would spam notifications.
 	}
 
 	async updateSettings(newSettings: Partial<ReminderTelegramSettings>): Promise<void> {
@@ -287,8 +288,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 	getUpcomingDaysAhead(): number {
 		return this.settings.upcomingRemindersEnabled
-			? Math.max(1, this.settings.upcomingRemindersDaysAhead)
-			: 1;
+			? Math.max(0, this.settings.upcomingRemindersDaysAhead)
+			: 0;
 	}
 
 	async openTask(task: VaultTask): Promise<void> {
