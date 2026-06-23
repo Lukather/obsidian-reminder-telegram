@@ -161,6 +161,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				dropdown.onChange(async (value: 'whole-vault' | 'specific-folder'): Promise<void> => {
 					this.plugin.settings.scanMode = value;
 					this.debouncedSave();
+					// eslint-disable-next-line @typescript-eslint/no-deprecated -- re-render to show/hide the targetFolder row; deprecated API kept for Obsidian < 1.13.0 (minAppVersion: 1.4.0)
 					this.display();
 				});
 			});
