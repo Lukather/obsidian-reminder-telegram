@@ -1,5 +1,5 @@
 import {Notice, Plugin, TFile, MarkdownView} from 'obsidian';
-import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} from "./settings";
+import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab, SECRET_IDS} from "./settings";
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions} from "./checker";
 import {ScanSettings, VaultTask} from "./tasks";
 import {TaskIndex} from "./task-index";
@@ -8,6 +8,43 @@ import {ReminderTelegramSidebarView, SIDEBAR_VIEW_TYPE} from "./sidebar-view";
 
 function isMarkdownFile(file: unknown): file is TFile {
 	return file instanceof TFile && file.extension === 'md';
+}
+
+/** Returns the Telegram bot token from SecretStorage, or '' if not set. */
+export function getTelegramToken(plugin: ReminderTelegramPlugin): string {
+	return plugin.app.secretStorage.getSecret(SECRET_IDS.telegramBotToken) ?? '';
+}
+
+/** Returns the Telegram chat ID from SecretStorage, or '' if not set. */
+export function getTelegramChatId(plugin: ReminderTelegramPlugin): string {
+	return plugin.app.secretStorage.getSecret(SECRET_IDS.telegramChatId) ?? '';
+}
+
+/**
+ * One-time migration: move `telegramBotToken` / `telegramChatId` out of the
+ * plain-text data blob and into SecretStorage (1.11.4+). Idempotent.
+ *
+ * Reads from `data.telegramBotToken` / `data.telegramChatId` (the field names
+ * used in plugin versions < 1.1) and stores them via the secret storage API.
+ * The fields are dropped from the returned `settings` object so the next
+ * `saveData` call won't write them back in plain text.
+ */
+async function migrateSecretsToSecretStorage(
+	plugin: ReminderTelegramPlugin,
+	data: Record<string, unknown> | null,
+	settings: ReminderTelegramSettings,
+): Promise<void> {
+	const oldToken = typeof data?.['telegramBotToken'] === 'string' ? data['telegramBotToken'] : '';
+	const oldChatId = typeof data?.['telegramChatId'] === 'string' ? data['telegramChatId'] : '';
+
+	if (oldToken) {
+		plugin.app.secretStorage.setSecret(SECRET_IDS.telegramBotToken, oldToken);
+	}
+	if (oldChatId) {
+		plugin.app.secretStorage.setSecret(SECRET_IDS.telegramChatId, oldChatId);
+	}
+	// Nothing to strip from `settings` because the interface no longer has
+	// these fields; the obsolete keys will simply be ignored by Object.assign.
 }
 
 export default class ReminderTelegramPlugin extends Plugin {
@@ -86,14 +123,14 @@ export default class ReminderTelegramPlugin extends Plugin {
 			id: 'test-telegram-notification',
 			name: 'Send test Telegram notification',
 			callback: async (): Promise<void> => {
-				if (!this.settings.telegramBotToken || !this.settings.telegramChatId) {
+				if (!getTelegramToken(this) || !getTelegramChatId(this)) {
 					new Notice('Please configure Telegram bot token and chat ID in settings');
 					return;
 				}
 				new Notice('Sending test notification...');
 				const result = await sendTestNotification(
-					this.settings.telegramBotToken,
-					this.settings.telegramChatId,
+					getTelegramToken(this),
+					getTelegramChatId(this),
 					this.settings.testMessageTemplate,
 					this.settings.useMarkdownFormatting
 				);
@@ -124,7 +161,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ReminderTelegramSettings>);
+		const rawData = (await this.loadData() as Record<string, unknown> | null) ?? null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, rawData as Partial<ReminderTelegramSettings>);
 		this.settings.maxTasksPerCheck = typeof this.settings.maxTasksPerCheck === 'number' && this.settings.maxTasksPerCheck >= 1
 			? this.settings.maxTasksPerCheck
 			: DEFAULT_SETTINGS.maxTasksPerCheck;
@@ -137,6 +175,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.settings.livePreviewEnabled = typeof this.settings.livePreviewEnabled === 'boolean'
 			? this.settings.livePreviewEnabled
 			: DEFAULT_SETTINGS.livePreviewEnabled;
+		// Migrate any pre-1.1 plain-text secrets into SecretStorage. Idempotent.
+		await migrateSecretsToSecretStorage(this, rawData, this.settings);
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
@@ -149,12 +189,24 @@ export default class ReminderTelegramPlugin extends Plugin {
 		};
 	}
 
+	/**
+	 * Persist the notification state alongside whatever the framework passed.
+	 *
+	 * The declarative settings API (Obsidian 1.13+) auto-calls
+	 * `saveData(this.plugin.settings)` on every `control` change. We override
+	 * to merge in the current notification state so both pieces land in the
+	 * same file. The base implementation accepts the settings object as the
+	 * only argument; we widen the type since we also need to inject extras.
+	 */
+	async saveData(data: unknown): Promise<void> {
+		await super.saveData({
+			...(data as Record<string, unknown>),
+			...saveNotificationState(this.notificationState),
+		});
+	}
+
 	async saveSettings(): Promise<void> {
-		const dataToSave = {
-			...this.settings,
-			...saveNotificationState(this.notificationState)
-		};
-		await this.saveData(dataToSave);
+		await this.saveData(this.settings);
 	}
 
 	private getScanSettings(): ScanSettings {
@@ -165,7 +217,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 	}
 
 	async manualCheck(): Promise<void> {
-		if (!this.settings.telegramBotToken || !this.settings.telegramChatId) {
+		if (!getTelegramToken(this) || !getTelegramChatId(this)) {
 			new Notice('Please configure Telegram bot token and chat ID in settings');
 			return;
 		}
@@ -177,8 +229,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 		try {
 			this.notificationState = await checkDeadlines(
 				this.taskIndex.getAllTasks(),
-				this.settings.telegramBotToken,
-				this.settings.telegramChatId,
+				getTelegramToken(this),
+				getTelegramChatId(this),
 				this.notificationState,
 				this.settings.bulkMessageTemplate,
 				this.settings.individualMessageTemplate,
@@ -190,8 +242,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 		} catch (error) {
 			console.error('Error during manual check:', sanitizeErrorMessage(
 				String(error),
-				this.settings.telegramBotToken,
-				this.settings.telegramChatId
+				getTelegramToken(this),
+				getTelegramChatId(this)
 			));
 			new Notice('Error checking reminders. See console for details.');
 		}
@@ -205,8 +257,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		if (
 			!this.settings.notificationsEnabled ||
-			!this.settings.telegramBotToken ||
-			!this.settings.telegramChatId ||
+			!getTelegramToken(this) ||
+			!getTelegramChatId(this) ||
 			this.settings.checkIntervalMinutes <= 0
 		) {
 			return;
@@ -218,8 +270,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 					try {
 						this.notificationState = await checkDeadlines(
 							this.taskIndex.getAllTasks(),
-							this.settings.telegramBotToken,
-							this.settings.telegramChatId,
+							getTelegramToken(this),
+							getTelegramChatId(this),
 							this.notificationState,
 							this.settings.bulkMessageTemplate,
 							this.settings.individualMessageTemplate,
@@ -231,8 +283,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 					} catch (error) {
 						console.error('Error during periodic check:', sanitizeErrorMessage(
 							String(error),
-							this.settings.telegramBotToken,
-							this.settings.telegramChatId
+							getTelegramToken(this),
+							getTelegramChatId(this)
 						));
 					}
 				})();
