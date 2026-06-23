@@ -454,7 +454,7 @@ describe('scanVaultForTasks()', () => {
   });
 
   function createMockApp(files: Array<{ path: string; content: string; frontmatter?: Record<string, unknown> }>) {
-    const app = new MockApp() as InstanceType<typeof MockApp>;
+    const app = new MockApp();
 
     const tfiles = files.map(f => {
       const tf = new MockTFile(f.path);

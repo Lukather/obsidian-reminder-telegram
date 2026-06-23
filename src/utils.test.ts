@@ -133,7 +133,7 @@ describe('getSanitizedSettingsForLogging()', () => {
       telegramBotToken: undefined,
       telegramChatId: undefined,
     };
-    const result = getSanitizedSettingsForLogging(settings as Parameters<typeof getSanitizedSettingsForLogging>[0]);
+    const result = getSanitizedSettingsForLogging(settings);
     expect(result.telegramBotToken).toBe('');
     expect(result.telegramChatId).toBe('');
   });
