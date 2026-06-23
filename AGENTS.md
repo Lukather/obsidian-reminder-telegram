@@ -18,8 +18,8 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 
 | File | Purpose |
 |------|---------|
-| `src/main.ts` | Plugin lifecycle, commands, status bar, periodic checking, `saveData` override, secret accessor helpers |
-| `src/settings.ts` | Settings interface, declarative tab (`getSettingDefinitions()`), secret IDs, `DEFAULT_SETTINGS` |
+| `src/main.ts` | Plugin lifecycle, commands, status bar, periodic checking |
+| `src/settings.ts` | Settings interface, UI tab (`ReminderTelegramSettingTab`) |
 | `src/checker.ts` | `checkDeadlines()`, `checkAndNotify()`, duplicate prevention |
 | `src/tasks.ts` | `VaultTask`, `scanVaultForTasks()`, date parsing |
 | `src/telegram.ts` | `sendTelegramMessage()`, `sendTaskReminder()`, `sendBulkReminders()` |
@@ -27,9 +27,10 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 
 ## Settings
 
-**Settings interface** (in `src/settings.ts`):
 ```typescript
 interface ReminderTelegramSettings {
+    telegramBotToken: string;           // @BotFather
+    telegramChatId: string;             // @userinfobot
     notificationsEnabled: boolean;     // default: true
     checkIntervalMinutes: number;       // default: 30
     scanMode: 'whole-vault' | 'specific-folder';
@@ -39,21 +40,8 @@ interface ReminderTelegramSettings {
     testMessageTemplate: string;
     useMarkdownFormatting: boolean;     // default: false
     maxTasksPerCheck: number;           // default: 10
-    upcomingRemindersDaysAhead: number; // default: 1
-    upcomingRemindersEnabled: boolean;  // default: true
-    livePreviewEnabled: boolean;        // default: true
 }
 ```
-
-**Secrets** (Telegram bot token, chat ID) live in Obsidian's `SecretStorage` (1.11.4+), NOT in the settings object. Read them via `getTelegramToken(plugin)` / `getTelegramChatId(plugin)` from `main.ts`. Storage IDs are exported as `SECRET_IDS` from `settings.ts`.
-
-**Settings tab** uses the declarative `getSettingDefinitions()` API (Obsidian 1.13+). Obsidian renders the tab from a list of definitions; we describe the shape, Obsidian handles rendering, search indexing, and persistence. Patterns:
-- `control` for plain settings (toggle/dropdown/text/textarea/number); auto-saves to `this.plugin.settings`
-- `render` for custom UI (setup guide, variable chips, character counter, live preview, secret fields); must save manually
-- `action` for buttons (e.g. "Send test"); must save manually
-- `visible` predicate for conditional visibility (e.g. `targetFolder` only when `scanMode === 'specific-folder'`)
-- `validate` for inline error messages on number/text controls
-- Groups with `type: 'group', heading: '...'` organise the tab into sections
 
 ## Agent skills
 
@@ -137,7 +125,7 @@ interface TelegramSendResult {
 
 ## Common Patterns
 
-**Add setting**: Interface → DEFAULT_SETTINGS → entry in `getSettingDefinitions()`. Use `control` for plain types, `render` for custom UI.
+**Add setting**: Interface → DEFAULT_SETTINGS → SettingTab.display()
 
 **Add command**:
 ```typescript
@@ -172,5 +160,5 @@ this.registerEvent(this.app.workspace.on('event', handler));
 ---
 - **ID**: `reminder-telegram`
 - **Version**: 1.0.7
-- **Min App**: 1.13.0
+- **Min App**: 1.4.0
 - **Repo**: [Lukather/obsidian-reminder-telegram](https://github.com/Lukather/obsidian-reminder-telegram)
