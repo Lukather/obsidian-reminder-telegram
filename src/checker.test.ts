@@ -16,7 +16,6 @@ import {
 } from './checker';
 import {
 	makeInlineTask,
-	makeFrontmatterTask,
 	makeDeadlineDateOnly,
 	allSampleTasks,
 	dueTodayTasks,

@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // obsidian is resolved to __mocks__/obsidian.ts via vitest.config.ts resolve.alias
-import { MockApp, MockTFile, MockMetadataCache } from 'obsidian';
+import { MockApp, MockTFile } from 'obsidian';
 import {
   parseDate,
   deadlineToCalendarDay,
@@ -27,7 +27,7 @@ import {
   type VaultTask,
   type Deadline,
 } from './tasks';
-import { makeDeadlineDateOnly, makeDeadlineDateTime, makeInlineTask, makeFrontmatterTask, allSampleTasks } from './__fixtures__/tasks';
+import { makeDeadlineDateOnly, makeInlineTask, allSampleTasks } from './__fixtures__/tasks';
 
 // ===========================================================================
 // parseDate

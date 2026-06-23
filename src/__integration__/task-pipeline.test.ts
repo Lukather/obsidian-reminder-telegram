@@ -174,11 +174,7 @@ describe('Task notification pipeline (E2E)', () => {
       { checkToday: true, checkOverdue: true, sendBulk: true, maxTasks: 10 },
     );
 
-    // The pre-notified task should not appear in notified count
-    // With bulk mode, if anything was notified, it includes all limited tasks
-    // So at minimum, we should have sent fewer notifications than total due tasks
-    const dueCount = allTasks.filter(t => t.deadline && !t.completed).length;
-    // Actually with bulk mode, if even 1 task is new, all limited tasks get sent
+    // With bulk mode, if even 1 task is new, all limited tasks get sent
     // So this assertion should just verify the function didn't crash
     expect(result.sendResults.length).toBeGreaterThanOrEqual(0);
   });

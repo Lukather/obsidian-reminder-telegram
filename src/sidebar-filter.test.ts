@@ -10,7 +10,6 @@ import {
 	applyTagFilter,
 	collectAllTags,
 	formatRelativeDate,
-	type TimeScopeFilter,
 } from './sidebar-filter';
 import {
 	makeInlineTask,
