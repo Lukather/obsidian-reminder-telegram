@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"moduleResolution": "bundler",
+		"types": ["vitest/globals", "node"]
+	},
+	"include": [
+		"src/**/*.ts",
+		"__mocks__/**/*.ts",
+		"vitest.config.ts",
+		"eslint.config.mts"
+	],
+	"exclude": []
+}

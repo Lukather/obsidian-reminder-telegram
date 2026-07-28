@@ -10,6 +10,9 @@ interface TelegramResponse {
 	description?: string;
 	error_code?: number;
 	result?: unknown;
+	parameters?: {
+		retry_after?: number;
+	};
 }
 
 /**
@@ -43,33 +46,38 @@ export interface TelegramTaskTemplateFields {
 }
 
 /**
- * Ensures message length doesn't exceed Telegram's 4096 character limit
+ * Ensures message length doesn't exceed Telegram's 4096 character limit.
+ * When truncating in Markdown mode, strips trailing unpaired delimiters to
+ * avoid Telegram parse errors.
  */
 function ensureMessageLength(text: string, parseMode: 'Markdown' | 'HTML' | null): string {
 	const maxLength = 4096;
-	
+
 	if (text.length <= maxLength) {
 		return text;
 	}
-	
+
 	// Truncate the message
 	let truncated = text.substring(0, maxLength);
-	
+
 	// If using markdown, try to avoid breaking in the middle of markdown syntax
 	if (parseMode === 'Markdown') {
 		// Find the last space or newline before the cutoff to avoid breaking words
 		const lastSpace = truncated.lastIndexOf(' ');
 		const lastNewline = truncated.lastIndexOf('\n');
 		const lastBreak = Math.max(lastSpace, lastNewline);
-		
+
 		if (lastBreak > maxLength * 0.8) { // Only adjust if we're not too close to the limit
 			truncated = truncated.substring(0, lastBreak);
 		}
+
+		// Strip trailing unpaired markdown delimiters that would break parsing
+		truncated = truncated.replace(/[*_`[(]+$/, '');
 	}
-	
+
 	// Add ellipsis to indicate truncation
 	truncated += '...';
-	
+
 	return truncated;
 }
 
@@ -126,6 +134,26 @@ export async function sendTelegramMessage(
 		}
 
 		if (!data.ok) {
+			// Retry on rate limit (429) — Telegram returns retry_after in seconds
+			if (data.error_code === 429 && data.parameters?.retry_after && data.parameters.retry_after > 0) {
+				await new Promise(resolve => setTimeout(resolve, data.parameters!.retry_after! * 1000));
+				const retryResponse = await requestUrl({
+					url,
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(requestBody)
+				});
+				let retryData: TelegramResponse;
+				try {
+					retryData = JSON.parse(retryResponse.text) as TelegramResponse;
+				} catch {
+					return { success: false, error: 'Failed to parse Telegram retry response' };
+				}
+				if (!retryData.ok) {
+					return { success: false, error: retryData.description || `Error code: ${retryData.error_code}` };
+				}
+				return { success: true, message: 'Message sent successfully (after rate limit retry)' };
+			}
 			return {
 				success: false,
 				error: data.description || `Error code: ${data.error_code}`

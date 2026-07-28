@@ -5,7 +5,7 @@ import {
 	ScanSettings,
 	scanVaultForTasks,
 	parseFrontmatterTasksFromCache,
-	parseTaskLine,
+	parseInlineTasks,
 } from './tasks';
 import {sanitizeErrorMessage} from './utils';
 
@@ -60,15 +60,7 @@ export class TaskIndex {
 			const endLine =
 				fileCache?.frontmatterPosition?.end?.line ??
 				this.fallbackFrontmatterEndLine(content);
-			const startLine = endLine + 1;
-			const lines = content.split('\n');
-
-			for (let i = startLine; i < lines.length; i++) {
-				const line = lines[i];
-				if (!line) continue;
-				const task = parseTaskLine(line, file.path, i + 1);
-				if (task?.deadline) tasks.push(task);
-			}
+			tasks.push(...parseInlineTasks(content, file.path, endLine + 1));
 
 			this.index.set(file.path, tasks);
 		} catch (error) {

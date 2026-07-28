@@ -69,9 +69,7 @@ export function clearTaskNotification(task: VaultTask, state: NotificationState)
 }
 
 export function pruneNotificationState(state: NotificationState): void {
-	const keys = Object.keys(state.notifiedTasks);
-	if (keys.length <= 1000) return;
-
+	// Age-based prune always runs, regardless of count
 	const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 	const recent = Object.entries(state.notifiedTasks)
 		.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
@@ -81,6 +79,7 @@ export function pruneNotificationState(state: NotificationState): void {
 		return;
 	}
 
+	// Cap at 1000 most recent entries
 	state.notifiedTasks = Object.fromEntries(
 		recent.sort((a, b) => b[1] - a[1]).slice(0, 1000)
 	);
@@ -150,6 +149,7 @@ export async function checkAndNotify(
 	const limitedTasks = allTasksToNotify.slice(0, opts.maxTasks);
 
 	if (limitedTasks.length === 0) {
+		state.lastCheck = Date.now();
 		pruneNotificationState(state);
 		return {
 			totalTasks: allTasks.length,

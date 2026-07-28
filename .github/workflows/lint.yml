@@ -25,6 +25,15 @@ jobs:
       - run: npm ci
       - run: npm run build --if-present
       - run: npm run lint
+      - run: npm run test:ci
+        if: always()  # Run even if build/lint fail
+      - run: npm run test:coverage
+        if: always()
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: coverage-report-${{ matrix.node-version }}
+          path: reports/coverage/
   release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest

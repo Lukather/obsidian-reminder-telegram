@@ -141,11 +141,10 @@ export function formatRelativeDate(deadline: Deadline, referenceDate: Date): str
 	const cmp = compareCalendarDays(dl, refDay);
 	if (cmp === 0) return 'Today';
 	if (cmp < 0) {
-		if (cmp === -1) return 'Yesterday';
-		// Number of days ago
 		const past = new Date(refDay.year, refDay.month - 1, refDay.day);
 		const d = new Date(dl.year, dl.month - 1, dl.day);
 		const diff = Math.round((past.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+		if (diff === 1) return 'Yesterday';
 		return `${diff} days ago`;
 	}
 
