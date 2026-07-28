@@ -136,7 +136,7 @@ export async function sendTelegramMessage(
 		if (!data.ok) {
 			// Retry on rate limit (429) — Telegram returns retry_after in seconds
 			if (data.error_code === 429 && data.parameters?.retry_after && data.parameters.retry_after > 0) {
-				await new Promise(resolve => setTimeout(resolve, data.parameters!.retry_after! * 1000));
+				await new Promise(resolve => window.setTimeout(resolve, data.parameters!.retry_after! * 1000));
 				const retryResponse = await requestUrl({
 					url,
 					method: 'POST',
