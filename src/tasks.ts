@@ -300,6 +300,67 @@ function isFileInFolder(filePath: string, targetFolder: string): boolean {
 	);
 }
 
+/**
+ * Build a parallel array marking which lines of the file are inside a fenced
+ * code block (CommonMark ``` or ~~~ fences). Lines that are themselves a fence
+ * are also marked, so callers can simply skip `inCodeBlock[i]` to ignore both
+ * the fence and its content.
+ */
+function buildCodeBlockMap(lines: string[]): boolean[] {
+	const inCodeBlock: boolean[] = [];
+	let depth = 0;
+	let fenceChar = '';
+	let fenceLength = 0;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i] ?? '';
+		if (depth > 0) inCodeBlock[i] = true;
+
+		const trimmed = line.trimStart();
+		if (trimmed.length < 3) continue;
+		const firstChar = trimmed[0];
+		if (firstChar !== '`' && firstChar !== '~') continue;
+
+		let len = 0;
+		while (len < trimmed.length && trimmed[len] === firstChar) len++;
+		if (len < 3) continue;
+
+		const trailing = trimmed.slice(len).trim();
+
+		if (depth === 0) {
+			// Opening fence: trailing info string is allowed.
+			depth = 1;
+			fenceChar = firstChar;
+			fenceLength = len;
+		} else if (firstChar === fenceChar && len >= fenceLength && trailing === '') {
+			// Closing fence: same char, at least as long, no extra content.
+			depth = 0;
+		}
+	}
+	return inCodeBlock;
+}
+
+/**
+ * Parse inline tasks from note content, skipping lines inside fenced code blocks.
+ * `startLine` lets callers skip the frontmatter region.
+ */
+export function parseInlineTasks(
+	content: string,
+	filePath: string,
+	startLine: number = 0
+): VaultTask[] {
+	const tasks: VaultTask[] = [];
+	const lines = content.split('\n');
+	const inCodeBlock = buildCodeBlockMap(lines);
+	for (let i = startLine; i < lines.length; i++) {
+		if (inCodeBlock[i]) continue;
+		const line = lines[i];
+		if (!line) continue;
+		const task = parseTaskLine(line, filePath, i + 1);
+		if (task?.deadline) tasks.push(task);
+	}
+	return tasks;
+}
+
 // Vault scanning
 
 export async function scanVaultForTasks(
@@ -326,13 +387,7 @@ export async function scanVaultForTasks(
 			tasks.push(...parseFrontmatterTasksFromCache(frontmatter, content, file.path));
 
 			const endLine = fileCache?.frontmatterPosition?.end?.line ?? findFrontmatterEndLine(content);
-			const lines = content.split('\n');
-			for (let i = endLine + 1; i < lines.length; i++) {
-				const line = lines[i];
-				if (!line) continue;
-				const task = parseTaskLine(line, file.path, i + 1);
-				if (task?.deadline) tasks.push(task);
-			}
+			tasks.push(...parseInlineTasks(content, file.path, endLine + 1));
 		} catch (error) {
 			console.error(
 				`Error reading file ${file.path}:`,

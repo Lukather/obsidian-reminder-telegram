@@ -18,6 +18,7 @@ import {
   taskDeadlineOverdueBeforeDay,
   parseTaskLine,
   parseFrontmatterTasksFromCache,
+  parseInlineTasks,
   scanVaultForTasks,
   getDueTasks,
   filterDueTasksByCheckFlags,
@@ -445,6 +446,133 @@ describe('parseFrontmatterTasksFromCache()', () => {
 });
 
 // ===========================================================================
+// parseInlineTasks
+// ===========================================================================
+
+describe('parseInlineTasks()', () => {
+  it('parses inline tasks with deadlines', () => {
+    const content = '- [ ] First 📅 2026-06-11\n- [ ] Second 📅 2026-06-12\n- [ ] No date\n';
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(2);
+    expect(tasks.map(t => t.text)).toEqual([
+      'First 📅 2026-06-11',
+      'Second 📅 2026-06-12',
+    ]);
+  });
+
+  it('skips lines inside a fenced code block (```)', () => {
+    const content = [
+      'Some intro paragraph.',
+      '```',
+      '- [ ] Inside code block 📅 2026-06-11',
+      '- [ ] Also inside 📅 2026-06-12',
+      '```',
+      '- [ ] After the block 📅 2026-06-13',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('After the block 📅 2026-06-13');
+  });
+
+  it('skips lines inside a tilde-fenced code block (~~~)', () => {
+    const content = [
+      '~~~',
+      '- [ ] Inside tilde block 📅 2026-06-11',
+      '~~~',
+      '- [ ] After tilde block 📅 2026-06-12',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('After tilde block 📅 2026-06-12');
+  });
+
+  it('respects fence length when matching closing fences', () => {
+    const content = [
+      '````',
+      '```',
+      '- [ ] Inside four-backtick block 📅 2026-06-11',
+      '```',
+      '- [ ] Still inside (three backticks are not enough to close) 📅 2026-06-12',
+      '````',
+      '- [ ] After the block 📅 2026-06-13',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('After the block 📅 2026-06-13');
+  });
+
+  it('skips lines inside a code block with an info string', () => {
+    const content = [
+      '```typescript',
+      '- [ ] Inside TS block 📅 2026-06-11',
+      '```',
+      '- [ ] Outside block 📅 2026-06-12',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('Outside block 📅 2026-06-12');
+  });
+
+  it('returns to scanning after multiple code blocks', () => {
+    const content = [
+      '- [ ] Real task 1 📅 2026-06-11',
+      '```',
+      '- [ ] Hidden 1 📅 2026-06-12',
+      '```',
+      '- [ ] Real task 2 📅 2026-06-13',
+      '```',
+      '- [ ] Hidden 2 📅 2026-06-14',
+      '```',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(2);
+    expect(tasks.map(t => t.text)).toEqual([
+      'Real task 1 📅 2026-06-11',
+      'Real task 2 📅 2026-06-13',
+    ]);
+  });
+
+  it('honors the startLine argument to skip frontmatter region', () => {
+    const content = [
+      '---',
+      'scheduled: 2026-06-11',
+      'status: open',
+      '---',
+      '- [ ] Below frontmatter 📅 2026-06-11',
+    ].join('\n');
+    // startLine=4 skips the 4 frontmatter lines
+    const tasks = parseInlineTasks(content, 'note.md', 4);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('Below frontmatter 📅 2026-06-11');
+  });
+
+  it('does not treat backticks inside list items as a fence', () => {
+    const content = [
+      '- [ ] Use the `code` button 📅 2026-06-11',
+      '- [ ] Inline ` ``` ` literal 📅 2026-06-12',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(2);
+  });
+
+  it('rejects closing fence with trailing text', () => {
+    // A closing fence must be only the fence chars (with optional whitespace).
+    // ``` end of paragraph should NOT close the block.
+    const content = [
+      '```',
+      '- [ ] Still inside 📅 2026-06-11',
+      '``` end of paragraph',
+      '- [ ] Also still inside 📅 2026-06-12',
+      '```',
+      '- [ ] Finally outside 📅 2026-06-13',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('Finally outside 📅 2026-06-13');
+  });
+});
+
+// ===========================================================================
 // scanVaultForTasks (with mocked App)
 // ===========================================================================
 
@@ -550,6 +678,29 @@ describe('scanVaultForTasks()', () => {
 
     const tasks = await scanVaultForTasks(app);
     expect(tasks).toEqual([]);
+  });
+
+  it('skips tasks inside fenced code blocks', async () => {
+    const app = createMockApp([
+      {
+        path: 'snippets.md',
+        content: [
+          '# Examples',
+          '- [ ] Real task 📅 2026-06-11',
+          '```',
+          '- [ ] [[2026-07-28]]',
+          '```',
+          '- [ ] Another real task 📅 2026-07-15',
+        ].join('\n'),
+        frontmatter: undefined,
+      },
+    ]);
+    const tasks = await scanVaultForTasks(app);
+    expect(tasks).toHaveLength(2);
+    expect(tasks.map(t => t.text)).toEqual([
+      'Real task 📅 2026-06-11',
+      'Another real task 📅 2026-07-15',
+    ]);
   });
 });
 
