@@ -4,6 +4,13 @@
 
 import type { NotificationState } from '../checker';
 
+/**
+ * Frozen reference epoch (ms) used by all time-relative fixtures in this file.
+ * Must match `REFERENCE_DATE` in checker.test.ts so that `vi.setSystemTime`
+ * plus the relative offsets below produce deterministic ages.
+ */
+export const FIXTURE_NOW_MS = new Date('2026-06-11T12:00:00Z').getTime();
+
 /** Brand-new state with no history. */
 export const emptyNotificationState: NotificationState = {
   notifiedTasks: {},
@@ -13,10 +20,10 @@ export const emptyNotificationState: NotificationState = {
 /** State with a few recent notifications (today). */
 export const recentNotificationState: NotificationState = {
   notifiedTasks: {
-    'notified:inline:due/today.md:2026-06-11:due01:2026-06-11': Date.now(),
-    'notified:frontmatter:due/today-note.md:2026-06-11:2026-06-11': Date.now(),
+    'notified:inline:due/today.md:2026-06-11:due01:2026-06-11': FIXTURE_NOW_MS,
+    'notified:frontmatter:due/today-note.md:2026-06-11:2026-06-11': FIXTURE_NOW_MS,
   },
-  lastCheck: Date.now(),
+  lastCheck: FIXTURE_NOW_MS,
 };
 
 /** State with one recent and one old (stale) notification. */
@@ -24,12 +31,12 @@ export const mixedAgeNotificationState: NotificationState = {
   notifiedTasks: {
     // Recent — within last 30 days
     'notified:inline:recent/file.md:2026-06-01:recent1:2026-06-01':
-      Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
+      FIXTURE_NOW_MS - 5 * 24 * 60 * 60 * 1000, // 5 days ago
     // Old — outside 30-day prune window
     'notified:inline:vintage/file.md:2026-01-01:vintage1:2026-01-01':
-      Date.now() - 60 * 24 * 60 * 60 * 1000, // 60 days ago
+      FIXTURE_NOW_MS - 60 * 24 * 60 * 60 * 1000, // 60 days ago
   },
-  lastCheck: Date.now() - 60 * 24 * 60 * 60 * 1000,
+  lastCheck: FIXTURE_NOW_MS - 60 * 24 * 60 * 60 * 1000,
 };
 
 /** State with many entries to test pruning behaviour (just over 1000). */
@@ -38,11 +45,11 @@ export const nearThresholdNotificationState: NotificationState = {
     Array.from({ length: 1001 }, (_, i) => [
       `notified:task-${i}:2026-06-${String((i % 28) + 1).padStart(2, '0')}`,
       i < 500
-        ? Date.now() - 5 * 24 * 60 * 60 * 1000 // fresh
-        : Date.now() - 40 * 24 * 60 * 60 * 1000, // stale
+        ? FIXTURE_NOW_MS - 5 * 24 * 60 * 60 * 1000 // fresh
+        : FIXTURE_NOW_MS - 40 * 24 * 60 * 60 * 1000, // stale
     ]),
   ),
-  lastCheck: Date.now(),
+  lastCheck: FIXTURE_NOW_MS,
 };
 
 /** State with exactly 1000 entries — below prune threshold. */
@@ -50,18 +57,18 @@ export const atThresholdNotificationState: NotificationState = {
   notifiedTasks: Object.fromEntries(
     Array.from({ length: 1000 }, (_, i) => [
       `notified:task-${i}:2026-06-${String((i % 28) + 1).padStart(2, '0')}`,
-      Date.now() - 5 * 24 * 60 * 60 * 1000,
+      FIXTURE_NOW_MS - 5 * 24 * 60 * 60 * 1000,
     ]),
   ),
-  lastCheck: Date.now(),
+  lastCheck: FIXTURE_NOW_MS,
 };
 
 /** State where a specific task has already been notified. */
 export function notificationStateWithTask(taskId: string, dateStr: string): NotificationState {
   return {
     notifiedTasks: {
-      [`notified:${taskId}:${dateStr}`]: Date.now(),
+      [`notified:${taskId}:${dateStr}`]: FIXTURE_NOW_MS,
     },
-    lastCheck: Date.now(),
+    lastCheck: FIXTURE_NOW_MS,
   };
 }
