@@ -273,12 +273,9 @@ export default class ReminderTelegramPlugin extends Plugin {
 			const leaf = leaves[0]!;
 			leaf.detach();
 		} else {
-			// Create a new sidebar leaf in the right sidebar
-			const rightLeaf = this.app.workspace.getRightLeaf(false);
-			if (rightLeaf) {
-				await rightLeaf.setViewState({type: SIDEBAR_VIEW_TYPE, active: true});
-				void this.app.workspace.revealLeaf(rightLeaf);
-			}
+			// Create a new sidebar leaf in the right sidebar (Obsidian 1.7.2+)
+			const rightLeaf = await this.app.workspace.ensureSideLeaf(SIDEBAR_VIEW_TYPE, 'right');
+			void this.app.workspace.revealLeaf(rightLeaf);
 		}
 	}
 
