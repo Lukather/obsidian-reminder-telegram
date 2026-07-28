@@ -71,8 +71,8 @@ export function clearTaskNotification(task: VaultTask, state: NotificationState)
 export function pruneNotificationState(state: NotificationState): void {
 	// Age-based prune always runs, regardless of count
 	const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-	const recent = Object.entries(state.notifiedTasks)
-		.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
+	const entries: Array<[string, number]> = Object.entries(state.notifiedTasks);
+	const recent = entries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
 
 	if (recent.length <= 1000) {
 		state.notifiedTasks = Object.fromEntries(recent);
