@@ -224,7 +224,8 @@ function findFrontmatterEndLine(content: string): number {
 }
 
 function formatFrontmatterSummary(frontmatter: FrontmatterData): string {
-	const entries: string[] = (Object.entries(frontmatter) as Array<[string, unknown]>).map(([k, v]) => {
+	const obj: Record<string, unknown> = frontmatter;
+	const entries: string[] = Object.entries(obj).map(([k, v]) => {
 		if (Array.isArray(v)) {
 			const items = v.map(item => `    - ${String(item)}`);
 			return `  ${k}:\n${items.join('\n')}`;
