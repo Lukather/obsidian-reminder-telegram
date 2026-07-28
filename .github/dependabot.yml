@@ -6,9 +6,19 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    target-branch: "dev"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
 
   # GitHub Actions workflow updates
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "dev"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

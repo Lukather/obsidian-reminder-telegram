@@ -47,13 +47,13 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		bulk: HTMLElement;
 		test: HTMLElement;
 	};
-	private saveTimer: ReturnType<typeof setTimeout> | null = null;
+	private saveTimer: number | null = null;
 	private readonly SAVE_DEBOUNCE_MS = 500;
 
 	/** Debounced save for text/textarea inputs that fire onChange on every keystroke. */
 	private debouncedSave(): void {
-		if (this.saveTimer) clearTimeout(this.saveTimer);
-		this.saveTimer = setTimeout(() => {
+		if (this.saveTimer) window.clearTimeout(this.saveTimer);
+		this.saveTimer = window.setTimeout(() => {
 			this.saveTimer = null;
 			void this.plugin.saveSettings();
 		}, this.SAVE_DEBOUNCE_MS);
@@ -161,7 +161,9 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				dropdown.onChange(async (value: 'whole-vault' | 'specific-folder'): Promise<void> => {
 					this.plugin.settings.scanMode = value;
 					this.debouncedSave();
-					// eslint-disable-next-line @typescript-eslint/no-deprecated -- re-render to show/hide the targetFolder row; deprecated API kept for Obsidian < 1.13.0 (minAppVersion: 1.4.0)
+					// `display()` is deprecated in 1.13+ in favor of `getSettingDefinitions()`,
+					// but we keep the imperative form so the plugin still works on Obsidian < 1.13
+					// (minAppVersion: 1.4.0).
 					this.display();
 				});
 			});
