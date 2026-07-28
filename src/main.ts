@@ -60,7 +60,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.addClass('reminder-telegram-status-bar');
 		statusBarItemEl.createSpan({text: 'Reminder Telegram'});
-		statusBarItemEl.createEl('span', {cls: 'reminder-telegram-icon', text: '🔔'});
+		statusBarItemEl.createSpan({cls: 'reminder-telegram-icon', text: '🔔'});
 		statusBarItemEl.onClickEvent(() => {
 			new Notice('Checking for due tasks...');
 			void this.manualCheck();

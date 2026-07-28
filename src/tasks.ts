@@ -106,7 +106,9 @@ export function deadlineToCalendarDay(deadline: Deadline): {year: number; month:
 export function deadlineToDateString(deadline: Deadline | null): string | null {
 	if (!deadline) return null;
 	const cd = deadlineToCalendarDay(deadline);
-	return `${cd.year}-${String(cd.month).padStart(2, '0')}-${String(cd.day).padStart(2, '0')}`;
+	const month = cd.month.toString().padStart(2, '0');
+	const day = cd.day.toString().padStart(2, '0');
+	return `${cd.year}-${month}-${day}`;
 }
 
 export function compareCalendarDays(a: {year: number; month: number; day: number}, b: {year: number; month: number; day: number}): number {
@@ -222,9 +224,11 @@ function findFrontmatterEndLine(content: string): number {
 }
 
 function formatFrontmatterSummary(frontmatter: FrontmatterData): string {
-	const entries = Object.entries(frontmatter).map(([k, v]) => {
+	const obj: Record<string, unknown> = frontmatter;
+	const entries: string[] = Object.entries(obj).map(([k, v]) => {
 		if (Array.isArray(v)) {
-			return `  ${k}:\n${v.map(item => `    - ${String(item)}`).join('\n')}`;
+			const items = v.map(item => `    - ${String(item)}`);
+			return `  ${k}:\n${items.join('\n')}`;
 		}
 		return `  ${k}: ${String(v)}`;
 	});
@@ -312,19 +316,19 @@ function buildCodeBlockMap(lines: string[]): boolean[] {
 	let fenceChar = '';
 	let fenceLength = 0;
 	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i] ?? '';
+		const line: string = lines[i] ?? '';
 		if (depth > 0) inCodeBlock[i] = true;
 
-		const trimmed = line.trimStart();
+		const trimmed: string = line.trimStart();
 		if (trimmed.length < 3) continue;
-		const firstChar = trimmed[0];
+		const firstChar: string = trimmed[0] ?? '';
 		if (firstChar !== '`' && firstChar !== '~') continue;
 
 		let len = 0;
 		while (len < trimmed.length && trimmed[len] === firstChar) len++;
 		if (len < 3) continue;
 
-		const trailing = trimmed.slice(len).trim();
+		const trailing: string = trimmed.slice(len).trim();
 
 		if (depth === 0) {
 			// Opening fence: trailing info string is allowed.
