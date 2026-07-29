@@ -7,7 +7,7 @@ import {
 	parseFrontmatterTasksFromCache,
 	parseInlineTasks,
 } from './tasks';
-import {sanitizeErrorMessage} from './utils';
+import {sanitizeErrorMessage, logInfo, logError} from './utils';
 
 /**
  * Incremental in-memory index of vault tasks.
@@ -35,6 +35,7 @@ export class TaskIndex {
 			bucket.push(task);
 			this.index.set(task.filePath, bucket);
 		}
+		logInfo(`Task index built: ${allTasks.length} task(s) across ${this.index.size} file(s)`);
 	}
 
 	updateScanSettings(scanSettings: ScanSettings): void {
@@ -64,9 +65,9 @@ export class TaskIndex {
 
 			this.index.set(file.path, tasks);
 		} catch (error) {
-			console.error(
-				`Error updating task index for ${file.path}:`,
-				sanitizeErrorMessage(String(error))
+			logError(
+				`Error updating task index for ${file.path}: ${sanitizeErrorMessage(String(error))}`,
+				error
 			);
 		}
 	}

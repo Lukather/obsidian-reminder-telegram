@@ -4,11 +4,14 @@
  * Target: 100% coverage (lines, functions, branches, statements)
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   maskSensitiveInfo,
   sanitizeErrorMessage,
   getSanitizedSettingsForLogging,
+  logInfo,
+  logWarn,
+  logError,
 } from './utils';
 
 // ---------------------------------------------------------------------------
@@ -95,6 +98,52 @@ describe('sanitizeErrorMessage()', () => {
   it('returns original message if sensitiveValues contain empty string', () => {
     const msg = 'Some error';
     expect(sanitizeErrorMessage(msg, '')).toBe(msg);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// logInfo / logWarn / logError
+// ---------------------------------------------------------------------------
+
+describe('log helpers', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('logInfo prefixes with [reminder-telegram] and routes to console.debug', () => {
+    logInfo('hello');
+    expect(console.debug).toHaveBeenCalledWith('[reminder-telegram] hello');
+  });
+
+  it('logWarn prefixes with [reminder-telegram] and routes to console.warn', () => {
+    logWarn('careful');
+    expect(console.warn).toHaveBeenCalledWith('[reminder-telegram] careful');
+  });
+
+  it('logError prefixes with [reminder-telegram] and routes to console.error', () => {
+    logError('boom');
+    expect(console.error).toHaveBeenCalledWith('[reminder-telegram] boom');
+  });
+
+  it('logError forwards the error object as a second argument when provided', () => {
+    const err = new Error('underlying');
+    logError('wrap', err);
+    expect(console.error).toHaveBeenCalledWith('[reminder-telegram] wrap', err);
+  });
+
+  it('does NOT sanitize the message itself (caller responsibility)', () => {
+    // The helpers intentionally don't mask sensitive values — that is the
+    // caller's job, the same way the existing console.error call sites use
+    // sanitizeErrorMessage before logging. We assert this by passing a
+    // string that looks like a token and checking it round-trips unchanged.
+    logInfo('Token: 1234567890abcdef');
+    expect(console.debug).toHaveBeenCalledWith('[reminder-telegram] Token: 1234567890abcdef');
   });
 });
 

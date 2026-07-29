@@ -1,7 +1,7 @@
 import {Notice} from 'obsidian';
 import {VaultTask, getDueTasks, getUpcomingTasks, getTaskNotificationKey, filterDueTasksByCheckFlags, deadlineToDateString} from './tasks';
 import {sendBulkReminders, sendTaskReminder, sendTestNotification as telegramSendTestNotification, TelegramSendResult, TelegramTaskTemplateFields} from './telegram';
-import {sanitizeErrorMessage} from './utils';
+import {sanitizeErrorMessage, logInfo, logError} from './utils';
 
 export interface NotificationState {
 	notifiedTasks: Record<string, number>;
@@ -179,6 +179,14 @@ export async function checkAndNotify(
 				markAsNotified(task, state);
 				notifiedTasksCount++;
 			}
+		} else {
+			// Bulk send failure was previously silent (only the per-task path
+			// logged its error). Surface it so users can diagnose Markdown
+			// parse errors, network issues, or invalid bot tokens. Issue #79.
+			console.error(
+				`Failed to send bulk notification for ${limitedTasks.length} task(s):`,
+				sanitizeErrorMessage(String(result.error), botToken, chatId)
+			);
 		}
 	} else {
 		for (const task of limitedTasks) {
@@ -200,16 +208,22 @@ export async function checkAndNotify(
 				markAsNotified(task, state);
 				notifiedTasksCount++;
 			} else {
-				console.error(`Failed to send notification for task ${task.id}:`, sanitizeErrorMessage(
+				logError(`Notification failed for task ${task.id}: ${sanitizeErrorMessage(
 					String(result.error),
 					botToken,
 					chatId
-				));
+				)}`);
 			}
 		}
 	}
 
 	pruneNotificationState(state);
+
+	const failedCount = sendResults.filter(r => !r.success).length;
+	logInfo(
+		`Check complete · scanned=${allTasks.length} · due=${dueTasks.length} · ` +
+		`upcoming=${upcomingToNotify.length} · notified=${notifiedTasksCount} · failed=${failedCount}`
+	);
 
 	return {
 		totalTasks: allTasks.length,

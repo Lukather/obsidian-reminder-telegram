@@ -1,5 +1,5 @@
 import {App} from 'obsidian';
-import {sanitizeErrorMessage} from './utils';
+import {sanitizeErrorMessage, logError} from './utils';
 
 // Types
 
@@ -393,9 +393,9 @@ export async function scanVaultForTasks(
 			const endLine = fileCache?.frontmatterPosition?.end?.line ?? findFrontmatterEndLine(content);
 			tasks.push(...parseInlineTasks(content, file.path, endLine + 1));
 		} catch (error) {
-			console.error(
-				`Error reading file ${file.path}:`,
-				sanitizeErrorMessage(String(error))
+			logError(
+				`Error reading file ${file.path}: ${sanitizeErrorMessage(String(error))}`,
+				error
 			);
 		}
 	}

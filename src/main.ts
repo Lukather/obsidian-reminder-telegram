@@ -3,7 +3,7 @@ import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} 
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions} from "./checker";
 import {ScanSettings, VaultTask} from "./tasks";
 import {TaskIndex} from "./task-index";
-import {sanitizeErrorMessage} from "./utils";
+import {sanitizeErrorMessage, logInfo, logError} from "./utils";
 import {ReminderTelegramSidebarView, SIDEBAR_VIEW_TYPE} from "./sidebar-view";
 
 function isMarkdownFile(file: unknown): file is TFile {
@@ -24,6 +24,15 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		this.taskIndex = new TaskIndex(this.app, this.getScanSettings());
 		await this.taskIndex.buildIndex();
+
+		logInfo(
+			`Loaded v${this.manifest.version} · ` +
+			`notifications=${this.settings.notificationsEnabled ? 'on' : 'off'} · ` +
+			`scan=${this.settings.scanMode}${this.settings.scanMode === 'specific-folder' ? ` (${this.settings.targetFolder || '/'})` : ''} · ` +
+			`checkEvery=${this.settings.checkIntervalMinutes}min · ` +
+			`upcoming=${this.settings.upcomingRemindersEnabled ? `${this.settings.upcomingRemindersDaysAhead}d` : 'off'} · ` +
+			`markdown=${this.settings.useMarkdownFormatting ? 'on' : 'off'}`
+		);
 
 		this.registerEvent(
 			this.app.vault.on('create', (file) => {
@@ -91,6 +100,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 					return;
 				}
 				new Notice('Sending test notification...');
+				logInfo('Test notification triggered');
 				const result = await sendTestNotification(
 					this.settings.telegramBotToken,
 					this.settings.telegramChatId,
@@ -101,6 +111,11 @@ export default class ReminderTelegramPlugin extends Plugin {
 					new Notice('Test notification sent successfully!');
 				} else {
 					new Notice(`Failed to send test: ${result.error}`);
+					logError(`Test notification failed: ${sanitizeErrorMessage(
+						String(result.error),
+						this.settings.telegramBotToken,
+						this.settings.telegramChatId
+					)}`);
 				}
 			}
 		});
@@ -121,6 +136,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 			this.cleanupInterval();
 			this.cleanupInterval = null;
 		}
+		logInfo('Unloaded');
 	}
 
 	async loadSettings(): Promise<void> {
@@ -174,6 +190,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 			return;
 		}
 
+		logInfo('Manual check triggered');
 		try {
 			this.notificationState = await checkDeadlines(
 				this.taskIndex.getAllTasks(),
@@ -188,7 +205,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 			await this.saveSettings();
 			this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
 		} catch (error) {
-			console.error('Error during manual check:', sanitizeErrorMessage(
+			logError('Manual check failed: ' + sanitizeErrorMessage(
 				String(error),
 				this.settings.telegramBotToken,
 				this.settings.telegramChatId
@@ -209,12 +226,16 @@ export default class ReminderTelegramPlugin extends Plugin {
 			!this.settings.telegramChatId ||
 			this.settings.checkIntervalMinutes <= 0
 		) {
+			logInfo('Periodic checking disabled');
 			return;
 		}
+
+		logInfo(`Periodic checking started (every ${this.settings.checkIntervalMinutes}min)`);
 
 		const intervalId = window.setInterval(
 			(): void => {
 				void (async (): Promise<void> => {
+					logInfo('Periodic check triggered');
 					try {
 						this.notificationState = await checkDeadlines(
 							this.taskIndex.getAllTasks(),
@@ -229,7 +250,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 						await this.saveSettings();
 						this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
 					} catch (error) {
-						console.error('Error during periodic check:', sanitizeErrorMessage(
+						logError('Periodic check failed: ' + sanitizeErrorMessage(
 							String(error),
 							this.settings.telegramBotToken,
 							this.settings.telegramChatId
@@ -272,10 +293,12 @@ export default class ReminderTelegramPlugin extends Plugin {
 			// Remove existing sidebar leaf
 			const leaf = leaves[0]!;
 			leaf.detach();
+			logInfo('Sidebar closed');
 		} else {
 			// Create a new sidebar leaf in the right sidebar (Obsidian 1.7.2+)
 			const rightLeaf = await this.app.workspace.ensureSideLeaf(SIDEBAR_VIEW_TYPE, 'right');
 			void this.app.workspace.revealLeaf(rightLeaf);
+			logInfo('Sidebar opened');
 		}
 	}
 

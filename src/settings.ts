@@ -257,7 +257,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		// Markdown formatting with example
 		const markdownSetting = new Setting(containerEl)
 			.setName('Use Markdown formatting')
-			.setDesc('Enable Telegram Markdown formatting for messages. Example: *bold*, _italic_, [links](https://example.com)');
+			.setDesc('Enable Telegram Markdown formatting for messages. Use *bold*, _italic_, `code`, [links](https://example.com) in your templates. Special characters in task names, file names and paths are auto-escaped.');
 		markdownSetting.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.useMarkdownFormatting)
 				.onChange(async (value): Promise<void> => {

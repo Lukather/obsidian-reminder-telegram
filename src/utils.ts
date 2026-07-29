@@ -42,6 +42,34 @@ function escapeRegExp(string: string): string {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Prefix prepended to every plugin log line so the dev console is easy
+ *  to filter to only this plugin's events. */
+const LOG_PREFIX = '[reminder-telegram]';
+
+/**
+ * Convenience log helpers. They do NOT sanitize the message — callers
+ * that may include tokens or chat IDs must wrap those values via
+ * {@link sanitizeErrorMessage} first (the same pattern the existing
+ * `console.error` call sites use). The helpers only add a consistent
+ * prefix so the dev console is easy to filter and so positive events
+ * (load, send, check) are just as visible as failures.
+ */
+export function logInfo(message: string): void {
+    console.debug(`${LOG_PREFIX} ${message}`);
+}
+
+export function logWarn(message: string): void {
+    console.warn(`${LOG_PREFIX} ${message}`);
+}
+
+export function logError(message: string, error?: unknown): void {
+    if (error !== undefined) {
+        console.error(`${LOG_PREFIX} ${message}`, error);
+    } else {
+        console.error(`${LOG_PREFIX} ${message}`);
+    }
+}
+
 /**
  * Creates a sanitized version of settings for logging/debugging
  */
