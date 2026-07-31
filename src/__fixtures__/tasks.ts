@@ -31,6 +31,8 @@ export function makeInlineTask(overrides: Partial<VaultTask> = {}): VaultTask {
     completed: false,
     deadline: makeDeadlineDateOnly(2026, 6, 11),
     deadlineString: '📅 2026-06-11',
+    timeString: null,
+    isAtTime: false,
     originalLine: '- [ ] Buy groceries 📅 2026-06-11',
     source: 'inline',
     tags: [],
@@ -50,6 +52,8 @@ export function makeFrontmatterTask(
     completed: false,
     deadline: makeDeadlineDateOnly(2026, 6, 11),
     deadlineString: '2026-06-11',
+    timeString: null,
+    isAtTime: false,
     originalLine: '---\n  scheduled: 2026-06-11\n  status: open\n---',
     source: 'frontmatter',
     tags: ['work', 'report'],
@@ -82,6 +86,8 @@ export const dueTodayTasks: VaultTask[] = [
     filePath: 'due/datetime-today.md',
     deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
     deadlineString: '📅 2026-06-11',
+    timeString: '15:00',
+    isAtTime: true,
   }),
 ];
 

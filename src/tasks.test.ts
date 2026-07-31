@@ -330,6 +330,164 @@ describe('parseTaskLine()', () => {
 });
 
 // ===========================================================================
+// parseDate — space separator (issue #88)
+// ===========================================================================
+
+describe('parseDate() — space separator (issue #88)', () => {
+  it('parses YYYY-MM-DD HH:MM as datetime', () => {
+    const result = parseDate('2026-07-22 12:30');
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('datetime');
+  });
+
+  it('parses YYYY-MM-DD HH:MM:SS as datetime', () => {
+    const result = parseDate('2026-07-22 12:30:45');
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('datetime');
+  });
+
+  it('still parses YYYY-MM-DDTHH:MM as datetime (T separator)', () => {
+    const result = parseDate('2026-07-22T12:30');
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('datetime');
+  });
+
+  it('still parses YYYY-MM-DD as date-only', () => {
+    const result = parseDate('2026-07-22');
+    expect(result).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+  });
+});
+
+// ===========================================================================
+// Inline task time parsing (issue #88)
+// ===========================================================================
+
+describe('Inline task time parsing (issue #88)', () => {
+  // AC1
+  it('parses space-separated time after 📅 as datetime and populates timeString/isAtTime', () => {
+    const result = parseTaskLine('- [ ] Call Grandma 📅 2026-07-22 12:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  // AC2
+  it('keeps date-only tasks as date-only with null timeString and isAtTime=false', () => {
+    const result = parseTaskLine('- [ ] Buy milk 📅 2026-07-22', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+    expect(result!.timeString).toBeNull();
+    expect(result!.isAtTime).toBe(false);
+  });
+
+  // AC3
+  it('parses seconds-precision time but reports HH:MM in timeString', () => {
+    const result = parseTaskLine('- [ ] Call Grandma 📅 2026-07-22 12:30:45', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  // AC4
+  it('parses T-separated ISO datetime after 📅', () => {
+    const result = parseTaskLine('- [ ] Call Grandma 📅 2026-07-22T12:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  // AC5
+  it('falls back to date-only for malformed time without throwing', () => {
+    expect(() => parseTaskLine('- [ ] Call Grandma 📅 2026-07-22 25:99', 'note.md', 1)).not.toThrow();
+    const result = parseTaskLine('- [ ] Call Grandma 📅 2026-07-22 25:99', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+    expect(result!.timeString).toBeNull();
+    expect(result!.isAtTime).toBe(false);
+  });
+
+  // AC6
+  it('parses due:: with time as datetime', () => {
+    const result = parseTaskLine('- [ ] Quarterly review due:: 2026-07-22 09:00', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('09:00');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  // AC7
+  it('parses scheduled:: with time as datetime', () => {
+    const result = parseTaskLine('- [ ] Plan trip scheduled:: 2026-07-22 14:00', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('14:00');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  it('parses starts:: with time as datetime', () => {
+    const result = parseTaskLine('- [ ] Start project starts:: 2026-07-22 08:15', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('08:15');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  it('parses time via parseInlineTasks (end-to-end)', () => {
+    const content = [
+      '- [ ] With time 📅 2026-08-01 09:30',
+      '- [ ] Without time 📅 2026-08-02',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(2);
+    const withTime = tasks.find(t => t.text.includes('With time'))!;
+    const withoutTime = tasks.find(t => t.text.includes('Without time'))!;
+    expect(withTime.deadline!.type).toBe('datetime');
+    expect(withTime.timeString).toBe('09:30');
+    expect(withTime.isAtTime).toBe(true);
+    expect(withoutTime.deadline!.type).toBe('date-only');
+    expect(withoutTime.timeString).toBeNull();
+    expect(withoutTime.isAtTime).toBe(false);
+  });
+});
+
+// ===========================================================================
+// Frontmatter datetime (issue #88)
+// ===========================================================================
+
+describe('Frontmatter datetime parsing (issue #88)', () => {
+  // AC8
+  it('parses frontmatter scheduled with ISO datetime and sets isAtTime=true', () => {
+    const content = '---\nscheduled: 2026-07-22T12:30\nstatus: open\n---\n# Meeting\nBody';
+    const result = parseFrontmatterTasksFromCache(
+      { scheduled: '2026-07-22T12:30', status: 'open' },
+      content,
+      'note.md',
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.deadline!.type).toBe('datetime');
+    expect(result[0]!.timeString).toBe('12:30');
+    expect(result[0]!.isAtTime).toBe(true);
+  });
+
+  it('frontmatter date-only still yields isAtTime=false and timeString=null', () => {
+    const content = '---\nscheduled: 2026-07-22\nstatus: open\n---\n# Plain\nBody';
+    const result = parseFrontmatterTasksFromCache(
+      { scheduled: '2026-07-22', status: 'open' },
+      content,
+      'note.md',
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.deadline!.type).toBe('date-only');
+    expect(result[0]!.timeString).toBeNull();
+    expect(result[0]!.isAtTime).toBe(false);
+  });
+});
+
+// ===========================================================================
 // parseFrontmatterTasksFromCache
 // ===========================================================================
 

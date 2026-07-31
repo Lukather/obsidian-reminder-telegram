@@ -26,6 +26,10 @@ export interface VaultTask {
 	completed: boolean;
 	deadline: Deadline | null;
 	deadlineString: string | null;
+	/** "HH:MM" when the deadline carries a time; null for date-only or missing deadlines. */
+	timeString: string | null;
+	/** True iff `deadline?.type === 'datetime'`. */
+	isAtTime: boolean;
 	originalLine: string;
 	source: 'inline' | 'frontmatter';
 	/** Frontmatter tags extracted from the note (frontmatter only; inline hashtags not parsed). */
@@ -58,8 +62,10 @@ const DATE_REGEX = /\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}
 export function parseDate(dateString: string): Deadline | null {
 	if (!dateString) return null;
 
-	if (/^\d{4}-\d{2}-\d{2}T/.test(dateString)) {
-		const date = new Date(dateString);
+	if (/^\d{4}-\d{2}-\d{2}[ T]\d/.test(dateString)) {
+		// Normalize "YYYY-MM-DD HH:MM[:SS]" → "YYYY-MM-DDTHH:MM[:SS]" for the Date constructor.
+		const isoString = dateString.replace(/^(\d{4}-\d{2}-\d{2}) (\d{1,2}:\d{2}(?::\d{2})?)/, '$1T$2');
+		const date = new Date(isoString);
 		if (!isNaN(date.getTime())) {
 			return {type: 'datetime', date};
 		}
@@ -142,26 +148,35 @@ export function taskDeadlineOverdueBeforeDay(deadline: Deadline, referenceDate: 
 // Inline task parsing
 
 const OBSIDIAN_DATE_PATTERNS = [
-	/📅\s*(\d{4}-\d{2}-\d{2})/,
-	/due::\s*(\d{4}-\d{2}-\d{2})/i,
-	/scheduled::\s*(\d{4}-\d{2}-\d{2})/i,
-	/starts::\s*(\d{4}-\d{2}-\d{2})/i,
+	/📅\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)/,
+	/due::\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)/i,
+	/scheduled::\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)/i,
+	/starts::\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)/i,
 ];
 
-function extractDeadline(text: string): {deadline: Deadline | null; match: string | null} {
+function timeStringFromDate(date: Date): string {
+	const hours = date.getHours().toString().padStart(2, '0');
+	const minutes = date.getMinutes().toString().padStart(2, '0');
+	return `${hours}:${minutes}`;
+}
+
+function extractDeadline(text: string): {deadline: Deadline | null; match: string | null; timeString: string | null} {
 	for (const pattern of OBSIDIAN_DATE_PATTERNS) {
 		const match = text.match(pattern);
 		if (match && match[1]) {
 			const deadline = parseDate(match[1]);
-			if (deadline) return {deadline, match: match[0]};
+			if (deadline) {
+				const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
+				return {deadline, match: match[0], timeString};
+			}
 		}
 	}
 	const dateMatch = text.match(DATE_REGEX);
 	if (dateMatch && dateMatch[1]) {
 		const deadline = parseDate(dateMatch[1]);
-		if (deadline) return {deadline, match: dateMatch[0]};
+		if (deadline) return {deadline, match: dateMatch[0], timeString: null};
 	}
-	return {deadline: null, match: null};
+	return {deadline: null, match: null, timeString: null};
 }
 
 function isTaskLine(line: string): boolean {
@@ -206,6 +221,8 @@ export function parseTaskLine(
 		completed,
 		deadline: deadlineInfo.deadline,
 		deadlineString: deadlineInfo.match,
+		timeString: deadlineInfo.timeString,
+		isAtTime: deadlineInfo.deadline?.type === 'datetime',
 		originalLine: line,
 		source: 'inline',
 		tags: [],
@@ -285,6 +302,8 @@ export function parseFrontmatterTasksFromCache(
 			completed: isCompleted,
 			deadline,
 			deadlineString,
+			timeString: deadline?.type === 'datetime' ? timeStringFromDate(deadline.date) : null,
+			isAtTime: deadline?.type === 'datetime',
 			originalLine: formatFrontmatterSummary(frontmatter),
 			source: 'frontmatter',
 			tags,
