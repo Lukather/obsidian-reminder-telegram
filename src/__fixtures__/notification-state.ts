@@ -14,6 +14,7 @@ export const FIXTURE_NOW_MS = new Date('2026-06-11T12:00:00Z').getTime();
 /** Brand-new state with no history. */
 export const emptyNotificationState: NotificationState = {
   notifiedTasks: {},
+  notifiedAtTimeInstances: {},
   lastCheck: 0,
 };
 
@@ -23,6 +24,7 @@ export const recentNotificationState: NotificationState = {
     'notified:inline:due/today.md:2026-06-11:due01:2026-06-11': FIXTURE_NOW_MS,
     'notified:frontmatter:due/today-note.md:2026-06-11:2026-06-11': FIXTURE_NOW_MS,
   },
+  notifiedAtTimeInstances: {},
   lastCheck: FIXTURE_NOW_MS,
 };
 
@@ -36,6 +38,7 @@ export const mixedAgeNotificationState: NotificationState = {
     'notified:inline:vintage/file.md:2026-01-01:vintage1:2026-01-01':
       FIXTURE_NOW_MS - 60 * 24 * 60 * 60 * 1000, // 60 days ago
   },
+  notifiedAtTimeInstances: {},
   lastCheck: FIXTURE_NOW_MS - 60 * 24 * 60 * 60 * 1000,
 };
 
@@ -49,6 +52,7 @@ export const nearThresholdNotificationState: NotificationState = {
         : FIXTURE_NOW_MS - 40 * 24 * 60 * 60 * 1000, // stale
     ]),
   ),
+  notifiedAtTimeInstances: {},
   lastCheck: FIXTURE_NOW_MS,
 };
 
@@ -60,6 +64,7 @@ export const atThresholdNotificationState: NotificationState = {
       FIXTURE_NOW_MS - 5 * 24 * 60 * 60 * 1000,
     ]),
   ),
+  notifiedAtTimeInstances: {},
   lastCheck: FIXTURE_NOW_MS,
 };
 
@@ -69,6 +74,7 @@ export function notificationStateWithTask(taskId: string, dateStr: string): Noti
     notifiedTasks: {
       [`notified:${taskId}:${dateStr}`]: FIXTURE_NOW_MS,
     },
+    notifiedAtTimeInstances: {},
     lastCheck: FIXTURE_NOW_MS,
   };
 }

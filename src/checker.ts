@@ -5,11 +5,20 @@ import {sanitizeErrorMessage} from './utils';
 
 export interface NotificationState {
 	notifiedTasks: Record<string, number>;
+	/**
+	 * Records the scheduled fire time (ms since epoch) for which an at-time
+	 * notification has been sent. Keyed by `taskId`. A task can fire multiple
+	 * times (e.g. after the user re-schedules it) — the value disambiguates
+	 * instances so we only short-circuit when the *same* scheduledFire has
+	 * already been notified.
+	 */
+	notifiedAtTimeInstances: Record<string, number>;
 	lastCheck: number;
 }
 
 export const DEFAULT_NOTIFICATION_STATE: NotificationState = {
 	notifiedTasks: {},
+	notifiedAtTimeInstances: {},
 	lastCheck: 0
 };
 
@@ -19,6 +28,13 @@ export interface CheckDeadlinesOptions {
 	daysAhead: number;
 	sendBulk: boolean;
 	maxTasks: number;
+	/**
+	 * If true, at-time (datetime) tasks are excluded from the periodic
+	 * check — they're owned by the AtTimeScheduler instead. When false
+	 * (default) the periodic check still picks up at-time tasks so the
+	 * scheduler isn't a single point of failure.
+	 */
+	strictTimeMode?: boolean;
 }
 
 const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
@@ -26,11 +42,13 @@ const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
 	checkOverdue: true,
 	daysAhead: 0,
 	sendBulk: true,
-	maxTasks: 10
+	maxTasks: 10,
+	strictTimeMode: false
 };
 
 interface PersistedNotificationState {
 	notifiedTasks?: Record<string, number>;
+	notifiedAtTimeInstances?: Record<string, number>;
 	lastCheck?: number;
 }
 
@@ -39,15 +57,24 @@ export function loadNotificationState(data: unknown): NotificationState {
 		const persisted = data as PersistedNotificationState;
 		return {
 			notifiedTasks: persisted.notifiedTasks || {},
+			notifiedAtTimeInstances: persisted.notifiedAtTimeInstances || {},
 			lastCheck: persisted.lastCheck || 0
 		};
 	}
-	return DEFAULT_NOTIFICATION_STATE;
+	// Return a FRESH copy so callers can mutate the maps without
+	// poisoning the shared DEFAULT_NOTIFICATION_STATE for subsequent
+	// loaders (e.g. between test cases).
+	return {
+		notifiedTasks: {},
+		notifiedAtTimeInstances: {},
+		lastCheck: 0
+	};
 }
 
 export function saveNotificationState(state: NotificationState): PersistedNotificationState {
 	return {
 		notifiedTasks: state.notifiedTasks,
+		notifiedAtTimeInstances: state.notifiedAtTimeInstances,
 		lastCheck: state.lastCheck
 	};
 }
@@ -69,20 +96,145 @@ export function clearTaskNotification(task: VaultTask, state: NotificationState)
 }
 
 export function pruneNotificationState(state: NotificationState): void {
-	// Age-based prune always runs, regardless of count
+	// Age-based prune always runs, regardless of count.
+	// 30-day window is wide enough that catch-up still works after a long
+	// weekend away, while keeping the state file from growing unbounded.
 	const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-	const entries: Array<[string, number]> = Object.entries(state.notifiedTasks);
-	const recent = entries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
 
-	if (recent.length <= 1000) {
-		state.notifiedTasks = Object.fromEntries(recent);
-		return;
+	// --- notifiedTasks (date-only / catch-all keys) ---
+	const notifiedEntries: Array<[string, number]> = Object.entries(state.notifiedTasks);
+	const recentNotified = notifiedEntries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
+
+	if (recentNotified.length <= 1000) {
+		state.notifiedTasks = Object.fromEntries(recentNotified);
+	} else {
+		// Cap at 1000 most recent entries
+		state.notifiedTasks = Object.fromEntries(
+			recentNotified.sort((a, b) => b[1] - a[1]).slice(0, 1000)
+		);
 	}
 
-	// Cap at 1000 most recent entries
-	state.notifiedTasks = Object.fromEntries(
-		recent.sort((a, b) => b[1] - a[1]).slice(0, 1000)
-	);
+	// --- notifiedAtTimeInstances (one entry per at-time fire) ---
+	// Same 30-day window. This map is small (one entry per fired instance) so
+	// the 1000-cap doesn't apply — age-pruning alone is enough.
+	const atTimeEntries: Array<[string, number]> = Object.entries(state.notifiedAtTimeInstances);
+	const recentAtTime = atTimeEntries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
+	state.notifiedAtTimeInstances = Object.fromEntries(recentAtTime);
+}
+
+/**
+ * Description of an at-time task that should fire right now. `scheduledFire`
+ * is the time the notification was meant to fire (deadline minus lead time);
+ * `delayedByMinutes` is how late the fire actually is, or 0 if on time.
+ */
+export interface AtTimeFire {
+	task: VaultTask;
+	/** Scheduled fire time (ms since epoch). */
+	scheduledFire: number;
+	/** Minutes late the fire is (0 if on time). */
+	delayedByMinutes: number;
+}
+
+/**
+ * Compute the next absolute time the at-time scheduler should wake up.
+ * Returns null when no at-time task warrants a wake-up (no datetime tasks,
+ * or all have already fired, or all are beyond the catch-up window).
+ *
+ * `notifiedInstances` is the same `notifiedAtTimeInstances` map from
+ * `NotificationState`. A task is considered "already fired" when its
+ * notified entry matches the `scheduledFire` we're considering.
+ */
+export function computeNextAtTimeFire(
+	tasks: VaultTask[],
+	now: Date,
+	leadTimeMin: number,
+	notifiedInstances: Record<string, number> = {}
+): Date | null {
+	const nowMs = now.getTime();
+	const leadMs = leadTimeMin * 60 * 1000;
+	let earliest: number | null = null;
+
+	for (const task of tasks) {
+		if (task.completed) continue;
+		if (!task.deadline || task.deadline.type !== 'datetime') continue;
+
+		const scheduledFire = task.deadline.date.getTime() - leadMs;
+		// Skip tasks whose scheduled fire is in the past — those are catch-up
+		// candidates handled by `dueAtTimeTasks`, not by the wake-up timer.
+		if (scheduledFire < nowMs) continue;
+		// Skip if the same instance was already notified.
+		if (notifiedInstances[task.id] === scheduledFire) continue;
+
+		if (earliest === null || scheduledFire < earliest) {
+			earliest = scheduledFire;
+		}
+	}
+
+	return earliest === null ? null : new Date(earliest);
+}
+
+/**
+ * Return the list of at-time tasks that should fire right now, honouring
+ * lead time, catch-up window, and the per-instance notified ledger.
+ *
+ * - `leadTimeMin`: minutes BEFORE the deadline the fire is scheduled. The
+ *   actual wake time is `deadline - leadTimeMin`; we accept anything in
+ *   `[now - catchUpWindow, now]` to cover both on-time and delayed fires.
+ * - `catchUpWindowMin`: maximum minutes of delay we'll still notify for.
+ *   Anything older is silently dropped (caller may still log / count it).
+ * - `notifiedInstances`: short-circuit map — same shape as
+ *   `NotificationState.notifiedAtTimeInstances`.
+ */
+export function dueAtTimeTasks(
+	tasks: VaultTask[],
+	now: Date,
+	catchUpWindowMin: number,
+	leadTimeMin: number,
+	notifiedInstances: Record<string, number> = {}
+): AtTimeFire[] {
+	const nowMs = now.getTime();
+	const leadMs = leadTimeMin * 60 * 1000;
+	const catchUpMs = catchUpWindowMin * 60 * 1000;
+	const fires: AtTimeFire[] = [];
+
+	for (const task of tasks) {
+		if (task.completed) continue;
+		if (!task.deadline || task.deadline.type !== 'datetime') continue;
+
+		const scheduledFire = task.deadline.date.getTime() - leadMs;
+		// Too far in the past → outside catch-up window. Drop silently.
+		if (scheduledFire < nowMs - catchUpMs) continue;
+		// Already past the catch-up window's leading edge: also drop if
+		// it's still in the future beyond our wake window.
+		if (scheduledFire > nowMs) continue;
+		// Already notified this exact instance.
+		if (notifiedInstances[task.id] === scheduledFire) continue;
+
+		const delayedByMs = Math.max(0, nowMs - scheduledFire);
+		fires.push({
+			task,
+			scheduledFire,
+			delayedByMinutes: Math.floor(delayedByMs / 60000)
+		});
+	}
+
+	// Earliest-scheduledFire first so consumers fire in chronological order.
+	fires.sort((a, b) => a.scheduledFire - b.scheduledFire);
+	return fires;
+}
+
+/**
+ * Mark a specific at-time instance as notified. Unlike `markAsNotified`
+ * (which keys on date), this keys on the precise scheduledFire ms so the
+ * same task can fire again after the user re-schedules it.
+ */
+export function markAtTimeInstanceNotified(
+	task: VaultTask,
+	scheduledFor: number,
+	state: NotificationState
+): void {
+	state.notifiedAtTimeInstances[task.id] = scheduledFor;
+	state.lastCheck = Date.now();
 }
 
 function mergeTasksForNotification(dueTasks: VaultTask[], upcomingTasks: VaultTask[]): VaultTask[] {
@@ -102,6 +254,91 @@ function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
 		filePath: task.filePath,
 		taskId: task.id
 	};
+}
+
+/**
+ * Convert an at-time fire into the template-field shape used by the
+ * Telegram sender. Differs from `formatTaskForTelegram` in that it carries
+ * the `delayedByMinutes` value (so the rendered line gets a `(delayed Xm)`
+ * suffix) and uses the precise ISO deadline string when available.
+ */
+export function formatAtTimeFireForTelegram(fire: AtTimeFire): TelegramTaskTemplateFields {
+	const task = fire.task;
+	const deadline = task.deadline && task.deadline.type === 'datetime'
+		? task.deadline.date.toISOString()
+		: task.deadlineString || deadlineToDateString(task.deadline) || 'Unknown';
+	return {
+		taskName: task.text,
+		fileName: task.fileName,
+		deadline,
+		filePath: task.filePath,
+		taskId: task.id,
+		delayedByMinutes: fire.delayedByMinutes > 0 ? fire.delayedByMinutes : null
+	};
+}
+
+export interface DispatchAtTimeOptions {
+	botToken: string;
+	chatId: string;
+	state: NotificationState;
+	individualTemplate?: string;
+	useMarkdown?: boolean;
+}
+
+/**
+ * Find at-time tasks that should fire right now and send each as an
+ * individual Telegram reminder. Returns the per-task results and the
+ * updated state.
+ *
+ * The "fire now" window is `[now - catchUpWindow, now]` (relative to the
+ * scheduled fire time `deadline - leadTime`). Already-notified instances
+ * are short-circuited via `state.notifiedAtTimeInstances`.
+ */
+export async function dispatchAtTimeReminders(
+	tasks: VaultTask[],
+	now: Date,
+	catchUpWindowMin: number,
+	leadTimeMin: number,
+	options: DispatchAtTimeOptions
+): Promise<{
+	fires: AtTimeFire[];
+	sendResults: TelegramSendResult[];
+	state: NotificationState;
+}> {
+	const {botToken, chatId, state, individualTemplate, useMarkdown} = options;
+	const fires = dueAtTimeTasks(tasks, now, catchUpWindowMin, leadTimeMin, state.notifiedAtTimeInstances);
+	const sendResults: TelegramSendResult[] = [];
+
+	for (const fire of fires) {
+		const fields = formatAtTimeFireForTelegram(fire);
+		const result = await sendTaskReminder(
+			botToken,
+			chatId,
+			fields.taskName,
+			fields.fileName,
+			fields.deadline,
+			individualTemplate,
+			useMarkdown,
+			fields.filePath,
+			fields.taskId,
+			fields.delayedByMinutes
+		);
+		sendResults.push(result);
+
+		if (result.success) {
+			markAtTimeInstanceNotified(fire.task, fire.scheduledFire, state);
+		} else {
+			console.error(
+				`Failed to send at-time notification for task ${fire.task.id}:`,
+				sanitizeErrorMessage(String(result.error), botToken, chatId)
+			);
+		}
+	}
+
+	// Prune the at-time ledger alongside the date-only one.
+	pruneNotificationState(state);
+
+	return {fires, sendResults, state};
 }
 
 /**
@@ -131,18 +368,26 @@ export async function checkAndNotify(
 
 	const today = new Date();
 
+	const baseDueTasks = getDueTasks(allTasks, today);
 	const dueTasks = filterDueTasksByCheckFlags(
-		getDueTasks(allTasks, today),
+		baseDueTasks,
 		today,
 		opts.checkToday,
 		opts.checkOverdue
 	);
 
-	const tasksToNotify = dueTasks.filter(task => !isAlreadyNotified(task, state));
+	// In strict mode the at-time scheduler owns datetime tasks; strip
+	// them from the periodic check so we don't double-notify.
+	const eligibleDueTasks = opts.strictTimeMode
+		? dueTasks.filter(task => !task.deadline || task.deadline.type !== 'datetime')
+		: dueTasks;
+
+	const tasksToNotify = eligibleDueTasks.filter(task => !isAlreadyNotified(task, state));
 
 	const upcomingToNotify = opts.daysAhead > 0
 		? getUpcomingTasks(allTasks, today, opts.daysAhead)
 			.filter(task => !isAlreadyNotified(task, state))
+			.filter(task => !opts.strictTimeMode || !task.deadline || task.deadline.type !== 'datetime')
 		: [];
 
 	const allTasksToNotify = mergeTasksForNotification(tasksToNotify, upcomingToNotify);

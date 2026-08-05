@@ -43,6 +43,13 @@ export interface TelegramTaskTemplateFields {
 	deadline: string;
 	filePath: string;
 	taskId: string;
+	/**
+	 * If the at-time scheduler fired this notification later than the
+	 * scheduled time, this is the number of minutes of delay. `null` or
+	 * `undefined` means the notification is on time (date-only path) and
+	 * no `(delayed Xm)` suffix should be appended.
+	 */
+	delayedByMinutes?: number | null;
 }
 
 /**
@@ -196,15 +203,22 @@ export async function sendTaskReminder(
 	template: string = 'Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}',
 	useMarkdown: boolean = false,
 	filePath: string = '',
-	taskId: string = ''
+	taskId: string = '',
+	delayedByMinutes?: number | null
 ): Promise<TelegramSendResult> {
-	const message = renderTemplate(template, {
+	const rendered = renderTemplate(template, {
 		taskName,
 		fileName,
 		deadline,
 		filePath,
 		taskId
 	});
+	// Append a (delayed Xm) suffix when the at-time scheduler fired this
+	// notification later than its scheduled time. Omitted for on-time
+	// fires and for the date-only / upcoming paths where delay is N/A.
+	const message = typeof delayedByMinutes === 'number' && delayedByMinutes > 0
+		? `${rendered} (delayed ${delayedByMinutes}m)`
+		: rendered;
 	return sendTelegramMessage(
 		botToken,
 		chatId,
@@ -230,13 +244,19 @@ export async function sendBulkReminders(
 
 	// Render individual task lines
 	const taskLines = tasks.map(task => {
-		return renderTemplate(individualTemplate, {
+		const line = renderTemplate(individualTemplate, {
 			taskName: task.taskName,
 			fileName: task.fileName,
 			deadline: task.deadline,
 			filePath: task.filePath,
 			taskId: task.taskId
 		});
+		// Same delayed-suffix rule as the per-task path: only append when
+		// this entry has a positive delay recorded.
+		const delay = task.delayedByMinutes;
+		return typeof delay === 'number' && delay > 0
+			? `${line} (delayed ${delay}m)`
+			: line;
 	});
 
 	// Render bulk message

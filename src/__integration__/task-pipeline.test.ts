@@ -13,7 +13,9 @@ import path from 'path';
 import { MockApp, MockTFile, requestUrl } from 'obsidian';
 
 import { scanVaultForTasks } from '../tasks';
-import { checkAndNotify, loadNotificationState } from '../checker';
+import { checkAndNotify, dispatchAtTimeReminders, loadNotificationState } from '../checker';
+import { AtTimeScheduler } from '../scheduler';
+import { makeInlineTask, makeDeadlineDateTime } from '../__fixtures__/tasks';
 
 /** Path to fixture markdown files. */
 const FIXTURES_DIR = path.resolve(__dirname, '..', '__fixtures__');
@@ -195,5 +197,214 @@ describe('Task notification pipeline (E2E)', () => {
 
     expect(result.notifiedTasks).toBe(0);
     expect(result.sendResults).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// At-time scheduler pipeline (issue #89)
+// ===========================================================================
+
+describe('At-time scheduler pipeline (E2E)', () => {
+  const BOT_TOKEN = 'test:bot-token-1234567890abcdef';
+  const CHAT_ID = 'test:chat-id-9876543210abcdef';
+  const FIXED_NOW = new Date('2026-06-11T12:00:00Z');
+
+  /** A 12:30 inline at-time task. The scheduler should fire at 12:30 with 0 lead. */
+  const at1230Task = makeInlineTask({
+    id: 'inline:at1230.md:2026-06-11T12:30:00:at1',
+    text: '12:30 at-time task',
+    filePath: 'at-time/1230.md',
+    fileName: '1230.md',
+    lineNumber: 1,
+    deadline: makeDeadlineDateTime('2026-06-11T12:30:00'),
+  });
+
+  beforeEach(() => {
+    // The previous describe block doesn't reset fake timers, so
+    // real-timer first to give useFakeTimers a clean slate.
+    vi.useRealTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    (requestUrl as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: JSON.stringify({ ok: true, result: {} }),
+      json: { ok: true, result: {} },
+      status: 200,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * Drain the microtask queue so a `void this.fire()` initiated during
+   * `arm()` has a chance to complete before assertions run.
+   * The scheduler's catch-up path is a synchronous (microtask) fire,
+   * not a timer-based fire, so advanceTimersByTime alone isn't enough.
+   */
+  async function flushMicrotasks(): Promise<void> {
+    // Multiple rounds walk the await chain inside the dispatcher
+    // (fire → onWake → dispatchAtTimeReminders → sendTaskReminder → requestUrl).
+    for (let i = 0; i < 20; i++) {
+      await Promise.resolve();
+    }
+  }
+
+  it('Task 12:30 + 0 lead + 60 catch-up → arm() sets nextFire to 12:30', () => {
+    const scheduler = new AtTimeScheduler(() => Promise.resolve());
+    scheduler.arm([at1230Task], 0, 60, {}, FIXED_NOW);
+    expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
+  });
+
+  it('vi.useFakeTimers() + advance to 12:30 → notification fires, notifiedAtTimeInstances set', async () => {
+    let capturedState: ReturnType<typeof loadNotificationState> | null = null;
+
+    const scheduler = new AtTimeScheduler(async () => {
+      // Real dispatcher — exactly the call the plugin makes.
+      const { state } = await dispatchAtTimeReminders(
+        [at1230Task],
+        new Date(),
+        60,
+        0,
+        { botToken: BOT_TOKEN, chatId: CHAT_ID, state: captureState() }
+      );
+      capturedState = state;
+    });
+
+    scheduler.arm([at1230Task], 0, 60, {}, FIXED_NOW);
+    expect(requestUrl).not.toHaveBeenCalled();
+
+    // Advance to 12:30 — the wake should fire. Then drain the
+    // microtask chain inside the dispatcher.
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+    await flushMicrotasks();
+
+    expect(requestUrl).toHaveBeenCalledTimes(1);
+    expect(capturedState).not.toBeNull();
+    const scheduledFire = new Date('2026-06-11T12:30:00Z').getTime();
+    expect(capturedState!.notifiedAtTimeInstances[at1230Task.id]).toBe(scheduledFire);
+
+    // Local helper to lazy-init the state object referenced in the callback.
+    function captureState() {
+      if (!capturedState) {
+        capturedState = loadNotificationState(null);
+      }
+      return capturedState;
+    }
+  });
+
+  it('rearm after new task cancels prior timer and sets a new one', () => {
+    const scheduler = new AtTimeScheduler(() => Promise.resolve());
+    scheduler.arm([at1230Task], 0, 60, {}, FIXED_NOW);
+    const first = scheduler.getNextFire();
+    expect(first?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
+
+    const laterTask = makeInlineTask({
+      id: 'inline:later.md:2026-06-11T18:00:00:lt1',
+      text: 'Later',
+      deadline: makeDeadlineDateTime('2026-06-11T18:00:00'),
+    });
+    scheduler.rearm([laterTask], 0, 60, {}, FIXED_NOW);
+    expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T18:00:00.000Z');
+  });
+
+  it('cancel → wakeTimer null, nextFire null', () => {
+    const scheduler = new AtTimeScheduler(() => Promise.resolve());
+    scheduler.arm([at1230Task], 0, 60, {}, FIXED_NOW);
+    expect(scheduler.hasPendingWake()).toBe(true);
+    scheduler.cancel();
+    expect(scheduler.hasPendingWake()).toBe(false);
+    expect(scheduler.getNextFire()).toBeNull();
+  });
+
+  it('Multiple at-time tasks in the same minute → one wake, all notified', async () => {
+    const a = makeInlineTask({
+      id: 'inline:a.md:2026-06-11T12:30:00:aa1',
+      deadline: makeDeadlineDateTime('2026-06-11T12:30:00'),
+    });
+    const b = makeInlineTask({
+      id: 'inline:b.md:2026-06-11T12:30:00:bb1',
+      deadline: makeDeadlineDateTime('2026-06-11T12:30:00'),
+    });
+    const c = makeInlineTask({
+      id: 'inline:c.md:2026-06-11T12:30:00:cc1',
+      deadline: makeDeadlineDateTime('2026-06-11T12:30:00'),
+    });
+
+    const state = loadNotificationState(null);
+    const scheduler = new AtTimeScheduler(async () => {
+      await dispatchAtTimeReminders(
+        [a, b, c],
+        new Date(),
+        60,
+        0,
+        { botToken: BOT_TOKEN, chatId: CHAT_ID, state }
+      );
+    });
+    // Arm at 12:00 with wake at 12:30 (30 min ahead). Advance the
+    // fake clock past 12:30 to trigger the wake, then drain the
+    // microtask chain inside the dispatcher.
+    scheduler.arm([a, b, c], 0, 60, {}, FIXED_NOW);
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+    await flushMicrotasks();
+
+    // All three tasks should have been notified.
+    expect(requestUrl).toHaveBeenCalledTimes(3);
+    const scheduledFire = new Date('2026-06-11T12:30:00Z').getTime();
+    expect(state.notifiedAtTimeInstances[a.id]).toBe(scheduledFire);
+    expect(state.notifiedAtTimeInstances[b.id]).toBe(scheduledFire);
+    expect(state.notifiedAtTimeInstances[c.id]).toBe(scheduledFire);
+  });
+
+  it('Reopen after 30min missed → notification fires with delayedByMinutes: 30', async () => {
+    // "Reopen" = scheduler arms at a `now` that's 30min past the deadline.
+    const reopenNow = new Date('2026-06-11T13:00:00Z'); // 30 min after 12:30
+    // Move the fake clock to match — the callback uses new Date() to
+    // decide which tasks are due, so the system clock and the arm()
+    // `now` must agree.
+    vi.setSystemTime(reopenNow);
+    const state = loadNotificationState(null);
+    const scheduler = new AtTimeScheduler(async () => {
+      await dispatchAtTimeReminders(
+        [at1230Task],
+        new Date(),
+        60,
+        0,
+        { botToken: BOT_TOKEN, chatId: CHAT_ID, state }
+      );
+    });
+    // arm() sets a setTimeout(0) for the catch-up fire. Drive the
+    // timer queue to fire it, then drain the microtask chain.
+    scheduler.arm([at1230Task], 0, 60, {}, reopenNow);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushMicrotasks();
+
+    expect(requestUrl).toHaveBeenCalledTimes(1);
+    const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+    const lastCall = calls[calls.length - 1]!;
+    const arg = lastCall[0] as { body?: string };
+    const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+    expect(body.text).toContain('(delayed 30m)');
+  });
+
+  it('Reopen after 90min with catchUpWindowMinutes=60 → silently dropped', async () => {
+    const reopenNow = new Date('2026-06-11T14:00:00Z'); // 90 min after 12:30
+    const state = loadNotificationState(null);
+    const scheduler = new AtTimeScheduler(async () => {
+      await dispatchAtTimeReminders(
+        [at1230Task],
+        new Date(),
+        60,
+        0,
+        { botToken: BOT_TOKEN, chatId: CHAT_ID, state }
+      );
+    });
+    // Task is 90min past, catch-up is 60min → scheduler filters it out,
+    // no wake is scheduled.
+    scheduler.arm([at1230Task], 0, 60, {}, reopenNow);
+
+    expect(requestUrl).not.toHaveBeenCalled();
+    expect(state.notifiedAtTimeInstances[at1230Task.id]).toBeUndefined();
   });
 });

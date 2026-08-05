@@ -11,12 +11,17 @@ import {
 	pruneNotificationState,
 	checkAndNotify,
 	clearTaskNotification,
+	computeNextAtTimeFire,
+	dueAtTimeTasks,
+	markAtTimeInstanceNotified,
+	dispatchAtTimeReminders,
 	DEFAULT_NOTIFICATION_STATE,
 	type NotificationState,
 } from './checker';
 import {
 	makeInlineTask,
 	makeDeadlineDateOnly,
+	makeDeadlineDateTime,
 	allSampleTasks,
 	dueTodayTasks,
 } from './__fixtures__/tasks';
@@ -33,7 +38,7 @@ const REFERENCE_DATE = new Date('2026-06-11T12:00:00Z');
 
 /** Fresh state for each test (fixtures are shared by reference). */
 function freshState(): NotificationState {
-	return { notifiedTasks: {}, lastCheck: 0 };
+	return { notifiedTasks: {}, notifiedAtTimeInstances: {}, lastCheck: 0 };
 }
 
 function mockTelegramSuccess(): void {
@@ -65,16 +70,19 @@ describe('loadNotificationState()', () => {
 	it('loads persisted state correctly', () => {
 		const data = {
 			notifiedTasks: { 'key1': 1000 },
+			notifiedAtTimeInstances: { 'task-a': 2000 },
 			lastCheck: 999,
 		};
 		const state = loadNotificationState(data);
 		expect(state.notifiedTasks).toEqual({ key1: 1000 });
+		expect(state.notifiedAtTimeInstances).toEqual({ 'task-a': 2000 });
 		expect(state.lastCheck).toBe(999);
 	});
 
 	it('handles partial persisted state', () => {
 		const state = loadNotificationState({ lastCheck: 42 });
 		expect(state.notifiedTasks).toEqual({});
+		expect(state.notifiedAtTimeInstances).toEqual({});
 		expect(state.lastCheck).toBe(42);
 	});
 
@@ -88,11 +96,23 @@ describe('saveNotificationState()', () => {
 	it('round-trips through load/save', () => {
 		const state: NotificationState = {
 			notifiedTasks: { 'a': 1, 'b': 2 },
+			notifiedAtTimeInstances: { 'task-x': 9000 },
 			lastCheck: 123,
 		};
 		const saved = saveNotificationState(state);
 		const loaded = loadNotificationState(saved);
 		expect(loaded).toEqual(state);
+	});
+
+	it('round-trips an empty at-time ledger', () => {
+		const state: NotificationState = {
+			notifiedTasks: {},
+			notifiedAtTimeInstances: {},
+			lastCheck: 0,
+		};
+		const saved = saveNotificationState(state);
+		const loaded = loadNotificationState(saved);
+		expect(loaded.notifiedAtTimeInstances).toEqual({});
 	});
 });
 
@@ -209,7 +229,7 @@ describe('checkAndNotify()', () => {
 	});
 
 	it('updates lastCheck even when no tasks to notify', async () => {
-		const state: NotificationState = { notifiedTasks: {}, lastCheck: 0 };
+		const state: NotificationState = { notifiedTasks: {}, notifiedAtTimeInstances: {}, lastCheck: 0 };
 		await checkAndNotify([], BOT_TOKEN, CHAT_ID, state, {
 			checkToday: true,
 			checkOverdue: true,
@@ -459,5 +479,420 @@ describe('checkAndNotify() with check flags', () => {
 
 		expect(result.dueTasks).toBe(1); // only overdue
 		expect(result.notifiedTasks).toBe(1);
+	});
+});
+
+// ===========================================================================
+// checkAndNotify with strictTimeMode (issue #89)
+// ===========================================================================
+
+describe('checkAndNotify() with strictTimeMode', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(REFERENCE_DATE);
+		mockTelegramSuccess();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('excludes at-time (datetime) tasks when strictTimeMode is on', async () => {
+		const state = freshState();
+		const dateOnlyTask = makeInlineTask({
+			id: 'inline:dateonly.md:2026-06-11:ds1',
+			deadline: makeDeadlineDateOnly(2026, 6, 11),
+		});
+		const datetimeTask = makeInlineTask({
+			id: 'inline:datetime.md:2026-06-11T15:00:00:dt1',
+			deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
+		});
+
+		const result = await checkAndNotify([dateOnlyTask, datetimeTask], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+			strictTimeMode: true
+		});
+
+		// Only the date-only task is notified; the datetime task is
+		// owned by the AtTimeScheduler in strict mode.
+		expect(result.notifiedTasks).toBe(1);
+	});
+
+	it('includes at-time (datetime) tasks when strictTimeMode is off (default)', async () => {
+		const state = freshState();
+		const dateOnlyTask = makeInlineTask({
+			id: 'inline:dateonly.md:2026-06-11:ds2',
+			deadline: makeDeadlineDateOnly(2026, 6, 11),
+		});
+		const datetimeTask = makeInlineTask({
+			id: 'inline:datetime.md:2026-06-11T15:00:00:dt2',
+			deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
+		});
+
+		const result = await checkAndNotify([dateOnlyTask, datetimeTask], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+		});
+
+		// Both tasks are notified when strictTimeMode is off.
+		expect(result.notifiedTasks).toBe(2);
+	});
+});
+
+// ===========================================================================
+// At-time scheduler helpers (issue #89)
+// ===========================================================================
+
+describe('computeNextAtTimeFire()', () => {
+	const NOW = new Date('2026-06-11T12:00:00Z');
+
+	it('returns the next datetime deadline minus lead', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const next = computeNextAtTimeFire([t], NOW, 0, {});
+		expect(next?.toISOString()).toBe('2026-06-11T13:00:00.000Z');
+	});
+
+	it('subtracts lead time from the deadline', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const next = computeNextAtTimeFire([t], NOW, 15, {});
+		expect(next?.toISOString()).toBe('2026-06-11T12:45:00.000Z');
+	});
+
+	it('returns the earliest when multiple at-time tasks exist', () => {
+		const a = makeInlineTask({
+			id: 'inline:a.md:2026-06-11T15:00:00:aaa1',
+			deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
+		});
+		const b = makeInlineTask({
+			id: 'inline:b.md:2026-06-11T13:00:00:bbb1',
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const next = computeNextAtTimeFire([a, b], NOW, 0, {});
+		expect(next?.toISOString()).toBe('2026-06-11T13:00:00.000Z');
+	});
+
+	it('returns null when no datetime tasks exist', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateOnly(2026, 6, 11),
+		});
+		expect(computeNextAtTimeFire([t], NOW, 0, {})).toBeNull();
+	});
+
+	it('returns null when all tasks are completed', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+			completed: true,
+		});
+		expect(computeNextAtTimeFire([t], NOW, 0, {})).toBeNull();
+	});
+
+	it('skips tasks whose scheduledFire is in the past', () => {
+		const past = makeInlineTask({
+			id: 'inline:past.md:2026-06-11T10:00:00:pp01',
+			deadline: makeDeadlineDateTime('2026-06-11T10:00:00'),
+		});
+		const future = makeInlineTask({
+			id: 'inline:future.md:2026-06-11T13:00:00:ff01',
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const next = computeNextAtTimeFire([past, future], NOW, 0, {});
+		expect(next?.toISOString()).toBe('2026-06-11T13:00:00.000Z');
+	});
+
+	it('skips tasks already notified at the same scheduledFire', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const scheduledFire = new Date('2026-06-11T13:00:00Z').getTime();
+		expect(computeNextAtTimeFire([t], NOW, 0, { [t.id]: scheduledFire })).toBeNull();
+	});
+
+	it('returns a future wake for tasks past the catch-up window (catch-up is for now-fires only)', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		// catchUpWindowMinutes doesn't filter the *future* wake \u2014 only
+		// `dueAtTimeTasks` honours it for catch-up candidates.
+		const next = computeNextAtTimeFire([t], NOW, 0, {});
+		expect(next?.toISOString()).toBe('2026-06-11T13:00:00.000Z');
+	});
+});
+
+describe('dueAtTimeTasks()', () => {
+	const NOW = new Date('2026-06-11T12:00:00Z');
+
+	it('returns tasks whose scheduledFire is in the catch-up window', () => {
+		const past = makeInlineTask({
+			id: 'inline:past.md:2026-06-11T11:30:00:pp01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:30:00'),
+		});
+		const fires = dueAtTimeTasks([past], NOW, 60, 0, {});
+		expect(fires).toHaveLength(1);
+		expect(fires[0]!.task.id).toBe(past.id);
+		expect(fires[0]!.delayedByMinutes).toBe(30);
+	});
+
+	it('reports delayedByMinutes=0 for on-time fires', () => {
+		const onTime = makeInlineTask({
+			id: 'inline:now.md:2026-06-11T12:00:00:nn01',
+			deadline: makeDeadlineDateTime('2026-06-11T12:00:00'),
+		});
+		const fires = dueAtTimeTasks([onTime], NOW, 60, 0, {});
+		expect(fires).toHaveLength(1);
+		expect(fires[0]!.delayedByMinutes).toBe(0);
+	});
+
+	it('drops tasks past the catch-up window', () => {
+		const oldTask = makeInlineTask({
+			id: 'inline:old.md:2026-06-11T10:00:00:oo01',
+			deadline: makeDeadlineDateTime('2026-06-11T10:00:00'),
+		});
+		// 2h delay, catch-up = 60m → silently dropped
+		const fires = dueAtTimeTasks([oldTask], NOW, 60, 0, {});
+		expect(fires).toEqual([]);
+	});
+
+	it('drops tasks whose scheduledFire is in the future (not yet due)', () => {
+		const future = makeInlineTask({
+			id: 'inline:future.md:2026-06-11T15:00:00:ff01',
+			deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
+		});
+		const fires = dueAtTimeTasks([future], NOW, 60, 0, {});
+		expect(fires).toEqual([]);
+	});
+
+	it('skips already-notified instances', () => {
+		const t = makeInlineTask({
+			id: 'inline:skip.md:2026-06-11T11:00:00:ss01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
+		});
+		const scheduledFire = new Date('2026-06-11T11:00:00Z').getTime();
+		const fires = dueAtTimeTasks([t], NOW, 60, 0, { [t.id]: scheduledFire });
+		expect(fires).toEqual([]);
+	});
+
+	it('fires a re-scheduled instance even if the same task was notified before', () => {
+		const t = makeInlineTask({
+			id: 'inline:resched.md:2026-06-11T11:30:00:rr01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:30:00'),
+		});
+		// Previous scheduledFire was different (e.g. 10:00) — current
+		// scheduledFire (11:30) is new and should still fire.
+		const fires = dueAtTimeTasks([t], NOW, 60, 0, {
+			[t.id]: new Date('2026-06-11T10:00:00Z').getTime(),
+		});
+		expect(fires).toHaveLength(1);
+	});
+
+	it('skips completed and date-only tasks', () => {
+		const completed = makeInlineTask({
+			id: 'inline:done.md:2026-06-11T11:00:00:dd01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
+			completed: true,
+		});
+		const dateOnly = makeInlineTask({
+			id: 'inline:dateonly.md:2026-06-11:dp01',
+			deadline: makeDeadlineDateOnly(2026, 6, 11),
+		});
+		const fires = dueAtTimeTasks([completed, dateOnly], NOW, 60, 0, {});
+		expect(fires).toEqual([]);
+	});
+
+	it('returns multiple fires sorted by scheduledFire ascending', () => {
+		const a = makeInlineTask({
+			id: 'inline:a.md:2026-06-11T11:50:00:aa1',
+			deadline: makeDeadlineDateTime('2026-06-11T11:50:00'),
+		});
+		const b = makeInlineTask({
+			id: 'inline:b.md:2026-06-11T11:00:00:bb1',
+			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
+		});
+		const c = makeInlineTask({
+			id: 'inline:c.md:2026-06-11T11:30:00:cc1',
+			deadline: makeDeadlineDateTime('2026-06-11T11:30:00'),
+		});
+		const fires = dueAtTimeTasks([a, b, c], NOW, 60, 0, {});
+		expect(fires.map(f => f.task.id)).toEqual([b.id, c.id, a.id]);
+	});
+
+	it('catch-up window of 0 drops anything from the past', () => {
+		const past = makeInlineTask({
+			id: 'inline:past.md:2026-06-11T11:59:00:pp01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:59:00'),
+		});
+		expect(dueAtTimeTasks([past], NOW, 0, 0, {})).toEqual([]);
+	});
+
+	it('honours lead time when computing scheduledFire', () => {
+		// Task deadline 12:00, lead 10min → scheduledFire = 11:50.
+		// At 12:00, the fire is 10 min late.
+		const t = makeInlineTask({
+			id: 'inline:lead.md:2026-06-11T12:00:00:ll01',
+			deadline: makeDeadlineDateTime('2026-06-11T12:00:00'),
+		});
+		const fires = dueAtTimeTasks([t], NOW, 60, 10, {});
+		expect(fires).toHaveLength(1);
+		expect(fires[0]!.delayedByMinutes).toBe(10);
+	});
+});
+
+describe('markAtTimeInstanceNotified()', () => {
+	it('records scheduledFire under the task id', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const state = freshState();
+		const scheduledFire = new Date('2026-06-11T13:00:00Z').getTime();
+		markAtTimeInstanceNotified(t, scheduledFire, state);
+		expect(state.notifiedAtTimeInstances[t.id]).toBe(scheduledFire);
+	});
+
+	it('updates lastCheck', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const state = freshState();
+		const before = state.lastCheck;
+		markAtTimeInstanceNotified(t, Date.now(), state);
+		expect(state.lastCheck).toBeGreaterThanOrEqual(before);
+	});
+
+	it('overwrites the previous entry for the same task', () => {
+		const t = makeInlineTask({
+			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
+		});
+		const state = freshState();
+		const oldFire = new Date('2026-06-11T10:00:00Z').getTime();
+		const newFire = new Date('2026-06-11T13:00:00Z').getTime();
+		markAtTimeInstanceNotified(t, oldFire, state);
+		markAtTimeInstanceNotified(t, newFire, state);
+		expect(state.notifiedAtTimeInstances[t.id]).toBe(newFire);
+	});
+});
+
+// ===========================================================================
+// dispatchAtTimeReminders (issue #89)
+// ===========================================================================
+
+describe('dispatchAtTimeReminders()', () => {
+	const NOW = new Date('2026-06-11T12:00:00Z');
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW);
+		mockTelegramSuccess();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('sends an individual reminder for a fire in the catch-up window', async () => {
+		const task = makeInlineTask({
+			id: 'inline:at-time.md:2026-06-11T11:30:00:at01',
+			text: 'At-time task',
+			deadline: makeDeadlineDateTime('2026-06-11T11:30:00'),
+		});
+		const state = freshState();
+		const result = await dispatchAtTimeReminders([task], NOW, 60, 0, {
+			botToken: BOT_TOKEN,
+			chatId: CHAT_ID,
+			state
+		});
+		expect(result.fires).toHaveLength(1);
+		expect(result.sendResults).toHaveLength(1);
+		expect(result.sendResults[0]!.success).toBe(true);
+	});
+
+	it('appends (delayed Xm) when the fire is past scheduledFire', async () => {
+		const task = makeInlineTask({
+			id: 'inline:delay.md:2026-06-11T11:00:00:dl01',
+			text: 'Delayed task',
+			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
+		});
+		const state = freshState();
+		await dispatchAtTimeReminders([task], NOW, 60, 0, {
+			botToken: BOT_TOKEN,
+			chatId: CHAT_ID,
+			state,
+			individualTemplate: 'Task: {taskName} ({deadline})'
+		});
+		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+		const lastCall = calls[calls.length - 1]!;
+		const arg = lastCall[0] as { body?: string };
+		const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+		expect(body.text).toContain('(delayed 60m)');
+	});
+
+	it('does not append a delay suffix for on-time fires', async () => {
+		const task = makeInlineTask({
+			id: 'inline:ontime.md:2026-06-11T12:00:00:ot01',
+			text: 'On-time task',
+			deadline: makeDeadlineDateTime('2026-06-11T12:00:00'),
+		});
+		const state = freshState();
+		await dispatchAtTimeReminders([task], NOW, 60, 0, {
+			botToken: BOT_TOKEN,
+			chatId: CHAT_ID,
+			state,
+			individualTemplate: 'Task: {taskName}'
+		});
+		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+		const lastCall = calls[calls.length - 1]!;
+		const arg = lastCall[0] as { body?: string };
+		const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+		expect(body.text).not.toContain('delayed');
+	});
+
+	it('marks the instance as notified after a successful send', async () => {
+		const task = makeInlineTask({
+			id: 'inline:mark.md:2026-06-11T11:00:00:mm01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
+		});
+		const state = freshState();
+		await dispatchAtTimeReminders([task], NOW, 60, 0, {
+			botToken: BOT_TOKEN,
+			chatId: CHAT_ID,
+			state
+		});
+		const scheduledFire = new Date('2026-06-11T11:00:00Z').getTime();
+		expect(state.notifiedAtTimeInstances[task.id]).toBe(scheduledFire);
+	});
+
+	it('does NOT mark the instance when the send fails', async () => {
+		mockTelegramError(400, 'Bad Request');
+		const task = makeInlineTask({
+			id: 'inline:fail.md:2026-06-11T11:00:00:ff01',
+			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
+		});
+		const state = freshState();
+		await dispatchAtTimeReminders([task], NOW, 60, 0, {
+			botToken: BOT_TOKEN,
+			chatId: CHAT_ID,
+			state
+		});
+		expect(state.notifiedAtTimeInstances[task.id]).toBeUndefined();
+	});
+
+	it('returns an empty fires array when nothing matches', async () => {
+		const state = freshState();
+		const result = await dispatchAtTimeReminders([], NOW, 60, 0, {
+			botToken: BOT_TOKEN,
+			chatId: CHAT_ID,
+			state
+		});
+		expect(result.fires).toEqual([]);
+		expect(result.sendResults).toEqual([]);
 	});
 });
