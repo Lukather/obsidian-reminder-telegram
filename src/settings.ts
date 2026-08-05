@@ -21,6 +21,14 @@ export interface ReminderTelegramSettings {
 	upcomingRemindersEnabled: boolean;
 	/** Enable live preview of templates */
 	livePreviewEnabled: boolean;
+	/** Master switch for the at-time notification pipeline. */
+	atTimeNotificationsEnabled: boolean;
+	/** Minutes before a deadline to fire an at-time notification (0 = sharp). */
+	leadTimeMinutes: number;
+	/** Maximum delay (minutes) accepted on next app open for at-time catch-up (0 = disable). */
+	atTimeCatchUpWindowMinutes: number;
+	/** If true, at-time tasks bypass periodic interval checks. */
+	strictTimeMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -37,8 +45,60 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	maxTasksPerCheck: 10,
 	upcomingRemindersDaysAhead: 1,
 	upcomingRemindersEnabled: true,
-	livePreviewEnabled: true
+	livePreviewEnabled: true,
+	atTimeNotificationsEnabled: true,
+	leadTimeMinutes: 0,
+	atTimeCatchUpWindowMinutes: 60,
+	strictTimeMode: false
 };
+
+// ---------------------------------------------------------------------------
+// Pure validators (issue #89 — at-time settings)
+// ---------------------------------------------------------------------------
+//
+// These helpers keep the input/load-time validation in one place so both the
+// SettingTab `onChange` handlers and `main.ts` `loadSettings()` can share
+// them. Each falls back to the matching `DEFAULT_SETTINGS` value when the
+// input is out of range or otherwise invalid.
+
+/** Inclusive upper bound for `leadTimeMinutes` (24h). */
+export const LEAD_TIME_MINUTES_MAX = 1440;
+/** Inclusive upper bound for `atTimeCatchUpWindowMinutes` (7 days). */
+export const AT_TIME_CATCH_UP_WINDOW_MAX = 10080;
+
+/**
+ * Coerce an arbitrary input (string, number, null, undefined) to a valid
+ * `leadTimeMinutes` value. Returns the parsed integer when in range
+ * [0, 1440], otherwise `DEFAULT_SETTINGS.leadTimeMinutes`.
+ */
+export function validateLeadTimeMinutes(value: unknown): number {
+	const n = typeof value === 'number' ? value : parseInt(String(value), 10);
+	return Number.isFinite(n) && n >= 0 && n <= LEAD_TIME_MINUTES_MAX
+		? n
+		: DEFAULT_SETTINGS.leadTimeMinutes;
+}
+
+/**
+ * Coerce an arbitrary input to a valid `atTimeCatchUpWindowMinutes` value.
+ * Returns the parsed integer when in range [0, 10080], otherwise
+ * `DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes`.
+ */
+export function validateAtTimeCatchUpWindowMinutes(value: unknown): number {
+	const n = typeof value === 'number' ? value : parseInt(String(value), 10);
+	return Number.isFinite(n) && n >= 0 && n <= AT_TIME_CATCH_UP_WINDOW_MAX
+		? n
+		: DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes;
+}
+
+/** Coerce a value to a boolean; fall back to the default when non-boolean. */
+export function validateAtTimeNotificationsEnabled(value: unknown): boolean {
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.atTimeNotificationsEnabled;
+}
+
+/** Coerce a value to a boolean; fall back to the default when non-boolean. */
+export function validateStrictTimeMode(value: unknown): boolean {
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.strictTimeMode;
+}
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
 	plugin: ReminderTelegramPlugin;
@@ -117,6 +177,58 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					this.plugin.settings.checkIntervalMinutes = numValue;
 					this.debouncedSave();
 				}));
+
+		// --- At-time notifications (issue #89) -----------------------------
+		new Setting(containerEl)
+			.setName('At-time notifications')
+			.setDesc('Fire reminders at the precise deadline of a task. Date-only tasks are unaffected; only tasks with a time component are gated by this section.')
+			.setHeading();
+		new Setting(containerEl)
+			.setName('At-time notifications enabled')
+			.setDesc('Master switch for the at-time notification pipeline.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.atTimeNotificationsEnabled)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.atTimeNotificationsEnabled = value;
+					this.debouncedSave();
+				}));
+		new Setting(containerEl)
+			.setName('Lead time (minutes)')
+			.setDesc('Minutes before the deadline to fire. 0 = sharp. Range: 0–1440 (24h).')
+			.addText(text => text
+				.setPlaceholder('0')
+				.setValue(this.plugin.settings.leadTimeMinutes.toString())
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.leadTimeMinutes = validateLeadTimeMinutes(value);
+					this.debouncedSave();
+				}));
+		new Setting(containerEl)
+			.setName('Catch-up window (minutes)')
+			.setDesc('Max delay (minutes) accepted on the next app open for an overdue at-time notification. 0 disables catch-up. Range: 0–10080 (7 days).')
+			.addText(text => text
+				.setPlaceholder('60')
+				.setValue(this.plugin.settings.atTimeCatchUpWindowMinutes.toString())
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.atTimeCatchUpWindowMinutes = validateAtTimeCatchUpWindowMinutes(value);
+					this.debouncedSave();
+				}));
+		new Setting(containerEl)
+			.setName('Strict time mode')
+			.setDesc('If on, at-time tasks bypass the periodic interval check and only fire at their scheduled time.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.strictTimeMode)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.strictTimeMode = value;
+					this.debouncedSave();
+				}));
+		// Small notice below the strict-mode toggle (always visible).
+		// Renders as a muted paragraph so it doesn't compete visually with the toggle.
+		containerEl.createEl('p', {
+			cls: 'setting-item-description',
+			text: 'Date-only tasks are unaffected; only at-time tasks are gated by this setting.'
+		});
+		// -------------------------------------------------------------------
+
 		new Setting(containerEl)
 			.setName('Max tasks per check')
 			.setDesc('Maximum number of due and upcoming tasks to notify per run. Additional tasks stay queued for the next check.')
