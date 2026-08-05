@@ -1,5 +1,13 @@
 import {Notice, Plugin, TFile, MarkdownView} from 'obsidian';
-import {DEFAULT_SETTINGS, ReminderTelegramSettings, ReminderTelegramSettingTab} from "./settings";
+import {
+	DEFAULT_SETTINGS,
+	ReminderTelegramSettings,
+	ReminderTelegramSettingTab,
+	validateAtTimeCatchUpWindowMinutes,
+	validateAtTimeNotificationsEnabled,
+	validateLeadTimeMinutes,
+	validateStrictTimeMode
+} from "./settings";
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions} from "./checker";
 import {ScanSettings, VaultTask} from "./tasks";
 import {TaskIndex} from "./task-index";
@@ -137,6 +145,12 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.settings.livePreviewEnabled = typeof this.settings.livePreviewEnabled === 'boolean'
 			? this.settings.livePreviewEnabled
 			: DEFAULT_SETTINGS.livePreviewEnabled;
+		// At-time settings (issue #89): reuse the pure validators from settings.ts
+		// so the onChange handlers and load-time validation stay in lock-step.
+		this.settings.atTimeNotificationsEnabled = validateAtTimeNotificationsEnabled(this.settings.atTimeNotificationsEnabled);
+		this.settings.leadTimeMinutes = validateLeadTimeMinutes(this.settings.leadTimeMinutes);
+		this.settings.atTimeCatchUpWindowMinutes = validateAtTimeCatchUpWindowMinutes(this.settings.atTimeCatchUpWindowMinutes);
+		this.settings.strictTimeMode = validateStrictTimeMode(this.settings.strictTimeMode);
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
