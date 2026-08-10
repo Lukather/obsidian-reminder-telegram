@@ -245,15 +245,17 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		try {
 			this.notificationState = await checkDeadlines(
-				this.taskIndex.getAllTasks(),
-				this.settings.telegramBotToken,
-				this.settings.telegramChatId,
-				this.notificationState,
-				this.settings.bulkMessageTemplate,
-				this.settings.individualMessageTemplate,
-				this.settings.useMarkdownFormatting,
-				this.getCheckOptions()
-			);
+					this.taskIndex.getAllTasks(),
+					this.settings.telegramBotToken,
+					this.settings.telegramChatId,
+					this.notificationState,
+					this.settings.bulkMessageTemplate,
+					this.settings.individualMessageTemplate,
+					this.settings.useMarkdownFormatting,
+					this.getCheckOptions(),
+					this.settings.upcomingBulkMessageTemplate,
+					this.settings.upcomingMessageTemplate
+				);
 			await this.saveSettings();
 			this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
 		} catch (error) {
@@ -286,15 +288,17 @@ export default class ReminderTelegramPlugin extends Plugin {
 				void (async (): Promise<void> => {
 					try {
 						this.notificationState = await checkDeadlines(
-							this.taskIndex.getAllTasks(),
-							this.settings.telegramBotToken,
-							this.settings.telegramChatId,
-							this.notificationState,
-							this.settings.bulkMessageTemplate,
-							this.settings.individualMessageTemplate,
-							this.settings.useMarkdownFormatting,
-							this.getCheckOptions()
-						);
+								this.taskIndex.getAllTasks(),
+								this.settings.telegramBotToken,
+								this.settings.telegramChatId,
+								this.notificationState,
+								this.settings.bulkMessageTemplate,
+								this.settings.individualMessageTemplate,
+								this.settings.useMarkdownFormatting,
+								this.getCheckOptions(),
+								this.settings.upcomingBulkMessageTemplate,
+								this.settings.upcomingMessageTemplate
+							);
 						await this.saveSettings();
 						this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
 					} catch (error) {
