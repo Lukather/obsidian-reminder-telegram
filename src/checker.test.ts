@@ -1009,7 +1009,7 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 
 		// Verify different templates were used
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
-		const messages = calls.map((call: any[]) => {
+		const messages = calls.map((call: unknown[]) => {
 			const arg = call[0] as { body?: string };
 			return arg.body ? (JSON.parse(arg.body) as { text?: string }).text : '';
 		});
