@@ -19,6 +19,10 @@ export interface ReminderTelegramSettings {
 	upcomingRemindersDaysAhead: number;
 	/** Enable notifications for upcoming tasks. */
 	upcomingRemindersEnabled: boolean;
+	/** Message template for individual upcoming tasks. */
+	upcomingMessageTemplate: string;
+	/** Message template for bulk upcoming tasks. */
+	upcomingBulkMessageTemplate: string;
 	/** Enable live preview of templates */
 	livePreviewEnabled: boolean;
 	/** Master switch for the at-time notification pipeline. */
@@ -45,6 +49,8 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	maxTasksPerCheck: 10,
 	upcomingRemindersDaysAhead: 1,
 	upcomingRemindersEnabled: true,
+	upcomingMessageTemplate: "📋 Upcoming Task\n\nTask: {taskName}\nFile: {fileName}\nDue: {deadline}",
+	upcomingBulkMessageTemplate: "You have {count} upcoming task(s):\n\n{tasks}",
 	livePreviewEnabled: true,
 	atTimeNotificationsEnabled: true,
 	leadTimeMinutes: 0,
@@ -106,6 +112,8 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		individual: HTMLElement;
 		bulk: HTMLElement;
 		test: HTMLElement;
+		upcomingIndividual: HTMLElement;
+		upcomingBulk: HTMLElement;
 	};
 	private saveTimer: number | null = null;
 	private readonly SAVE_DEBOUNCE_MS = 500;
@@ -262,6 +270,44 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					this.plugin.settings.upcomingRemindersDaysAhead = Number.isFinite(n) && n >= 0 ? n : DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
 					this.debouncedSave();
 				}));
+
+		// Upcoming message templates
+		const upcomingBulkTemplateSetting = new Setting(containerEl)
+			.setName('Upcoming bulk template')
+			.setDesc('Template for multiple upcoming tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual upcoming template below.');
+		upcomingBulkTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
+		upcomingBulkTemplateSetting.addTextArea(text => {
+			text
+				.setPlaceholder('You have {count} upcoming task(s):\n\n{tasks}')
+				.setValue(this.plugin.settings.upcomingBulkMessageTemplate)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.upcomingBulkMessageTemplate = value;
+					this.debouncedSave();
+					this.updateTemplatePreviews();
+				});
+			text.inputEl.addClass('reminder-telegram-template-textarea');
+		});
+		this.renderVariableChips(upcomingBulkTemplateSetting.settingEl, ['count', 'tasks']);
+		this.renderCharacterCounter(upcomingBulkTemplateSetting.settingEl, this.plugin.settings.upcomingBulkMessageTemplate);
+
+		const upcomingIndividualTemplateSetting = new Setting(containerEl)
+			.setName('Upcoming individual template')
+			.setDesc('Template for a single upcoming task and for each line in an upcoming bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
+		upcomingIndividualTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
+		upcomingIndividualTemplateSetting.addTextArea(text => {
+			text
+				.setPlaceholder('📋 Upcoming Task\n\nTask: {taskName}\nFile: {fileName}\nDue: {deadline}')
+				.setValue(this.plugin.settings.upcomingMessageTemplate)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.upcomingMessageTemplate = value;
+					this.debouncedSave();
+					this.updateTemplatePreviews();
+				});
+			text.inputEl.addClass('reminder-telegram-template-textarea');
+		});
+		this.renderVariableChips(upcomingIndividualTemplateSetting.settingEl, ['taskName', 'fileName', 'deadline', 'filePath', 'taskId']);
+		this.renderCharacterCounter(upcomingIndividualTemplateSetting.settingEl, this.plugin.settings.upcomingMessageTemplate);
+
 		containerEl.createEl('hr');
 		new Setting(containerEl)
 			.setName('Scan mode')
@@ -538,12 +584,26 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		testPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Test notification:'});
 		const testPreviewContent = testPreview.createDiv({cls: 'reminder-telegram-preview-content'});
 		testPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
-		
+
+		// Upcoming individual template preview
+		const upcomingIndividualPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
+		upcomingIndividualPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Upcoming individual:'});
+		const upcomingIndividualPreviewContent = upcomingIndividualPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		upcomingIndividualPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
+
+		// Upcoming bulk template preview
+		const upcomingBulkPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
+		upcomingBulkPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Upcoming bulk:'});
+		const upcomingBulkPreviewContent = upcomingBulkPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		upcomingBulkPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
+
 		// Store references for updates
 		this.previewElements = {
 			individual: individualPreviewContent,
 			bulk: bulkPreviewContent,
-			test: testPreviewContent
+			test: testPreviewContent,
+			upcomingIndividual: upcomingIndividualPreviewContent,
+			upcomingBulk: upcomingBulkPreviewContent
 		};
 		
 		// Initial update
@@ -609,6 +669,47 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			console.error('Error rendering test preview:', error);
 			elements.test.empty();
 			elements.test.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
+		}
+
+		// Upcoming individual template preview
+		try {
+			const upcomingIndividualPreview = this.renderTemplatePreview(
+				this.plugin.settings.upcomingMessageTemplate,
+				{
+					taskName: 'Buy groceries',
+					fileName: 'Shopping.md',
+					deadline: '2024-12-25',
+					filePath: 'Lists/Shopping.md',
+					taskId: 'Lists/Shopping.md:10'
+				}
+			);
+			elements.upcomingIndividual.empty();
+			elements.upcomingIndividual.createDiv({text: upcomingIndividualPreview});
+		} catch (error) {
+			console.error('Error rendering upcoming individual preview:', error);
+			elements.upcomingIndividual.empty();
+			elements.upcomingIndividual.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
+		}
+
+		// Upcoming bulk template preview
+		try {
+			const upcomingTaskLines = [
+				'Task: Buy groceries (2024-12-25) - Shopping.md',
+				'Task: Prepare slides (2024-12-26) - Presentation.md'
+			];
+			const upcomingBulkPreview = this.renderTemplatePreview(
+				this.plugin.settings.upcomingBulkMessageTemplate,
+				{
+					count: 2,
+					tasks: upcomingTaskLines.join('\n')
+				}
+			);
+			elements.upcomingBulk.empty();
+			elements.upcomingBulk.createDiv({text: upcomingBulkPreview});
+		} catch (error) {
+			console.error('Error rendering upcoming bulk preview:', error);
+			elements.upcomingBulk.empty();
+			elements.upcomingBulk.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
 		}
 	}
 

@@ -896,3 +896,245 @@ describe('dispatchAtTimeReminders()', () => {
 		expect(result.sendResults).toEqual([]);
 	});
 });
+
+// ===========================================================================
+// checkAndNotify with separate upcoming templates (issue #87)
+// ===========================================================================
+
+describe('checkAndNotify() with separate upcoming templates', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(REFERENCE_DATE);
+		mockTelegramSuccess();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('sends upcoming tasks using upcoming-specific templates', async () => {
+		const state = freshState();
+		// Only upcoming tasks (no due/overdue)
+		const upcoming = allSampleTasks.filter(
+			t => !t.completed && t.deadline !== null && t.deadline.type === 'date-only'
+			&& t.deadline.year === 2026 && t.deadline.month === 6 && t.deadline.day > 11
+		);
+		expect(upcoming.length).toBeGreaterThan(0);
+
+		const customUpcomingTemplate = 'Upcoming: {taskName}';
+		const customUpcomingBulkTemplate = 'UPCOMING ({count}): {tasks}';
+
+		const result = await checkAndNotify(upcoming, BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 10,
+			sendBulk: false,
+			maxTasks: 10,
+		},
+		// bulkTemplate, individualTemplate, testTemplate, useMarkdown
+		undefined, 'Regular: {taskName}', undefined, false,
+		// upcomingBulkTemplate, upcomingIndividualTemplate
+		customUpcomingBulkTemplate, customUpcomingTemplate
+		);
+
+		expect(result.notifiedTasks).toBeGreaterThan(0);
+		expect(result.upcomingTasks).toBeGreaterThan(0);
+
+		// Verify the upcoming template was used in the sent messages
+		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+		for (const call of calls) {
+			const arg = call[0] as { body?: string };
+			const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+			expect(body.text).toContain('Upcoming:');
+		}
+	});
+
+	it('sends due tasks using regular templates even when upcoming templates are set', async () => {
+		const state = freshState();
+		const tasks = dueTodayTasks.slice(0, 2);
+
+		const customUpcomingTemplate = 'Upcoming: {taskName}';
+		const customUpcomingBulkTemplate = 'UPCOMING ({count}): {tasks}';
+
+		const result = await checkAndNotify(tasks, BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: false,
+			maxTasks: 10,
+		},
+		// bulkTemplate, individualTemplate, testTemplate, useMarkdown
+		undefined, 'Regular: {taskName}', undefined, false,
+		// upcomingBulkTemplate, upcomingIndividualTemplate
+		customUpcomingBulkTemplate, customUpcomingTemplate
+		);
+
+		expect(result.notifiedTasks).toBe(2);
+
+		// Verify the regular template was used, not the upcoming one
+		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+		for (const call of calls) {
+			const arg = call[0] as { body?: string };
+			const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+			expect(body.text).toContain('Regular:');
+			expect(body.text).not.toContain('Upcoming:');
+		}
+	});
+
+	it('sends separate messages for due and upcoming tasks', async () => {
+		const state = freshState();
+		// Mix of due and upcoming tasks
+		const dueTask = dueTodayTasks[0]!;
+		const upcomingTask = makeInlineTask({
+			id: 'inline:upcoming/future.md:2026-06-15:sep01',
+			text: 'Future task',
+			deadline: makeDeadlineDateOnly(2026, 6, 15),
+			deadlineString: '📅 2026-06-15',
+		});
+
+		const result = await checkAndNotify([dueTask, upcomingTask], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: false,
+			maxTasks: 10,
+		},
+		undefined, 'Due: {taskName}', undefined, false,
+		undefined, 'Future: {taskName}'
+		);
+
+		// Should get 2 send results (one for due, one for upcoming)
+		expect(result.sendResults.length).toBe(2);
+		expect(result.notifiedTasks).toBe(2);
+
+		// Verify different templates were used
+		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+		const messages = calls.map((call: unknown[]) => {
+			const arg = call[0] as { body?: string };
+			return arg.body ? (JSON.parse(arg.body) as { text?: string }).text : '';
+		});
+
+		const hasDueMessage = messages.some((msg: string) => msg.includes('Due:'));
+		const hasFutureMessage = messages.some((msg: string) => msg.includes('Future:'));
+		expect(hasDueMessage).toBe(true);
+		expect(hasFutureMessage).toBe(true);
+	});
+
+	it('sends bulk upcoming tasks with upcoming bulk template', async () => {
+		const state = freshState();
+		const upcoming1 = makeInlineTask({
+			id: 'inline:upcoming/f1.md:2026-06-15:ub01',
+			text: 'Task A',
+			deadline: makeDeadlineDateOnly(2026, 6, 15),
+			deadlineString: '📅 2026-06-15',
+		});
+		const upcoming2 = makeInlineTask({
+			id: 'inline:upcoming/f2.md:2026-06-16:ub02',
+			text: 'Task B',
+			deadline: makeDeadlineDateOnly(2026, 6, 16),
+			deadlineString: '📅 2026-06-16',
+		});
+
+		const customUpcomingBulkTemplate = 'UPCOMING DIGEST ({count}):\n\n{tasks}';
+
+		const result = await checkAndNotify([upcoming1, upcoming2], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: true,
+			maxTasks: 10,
+		},
+		'Due bulk: {count}', 'Due: {taskName}', undefined, false,
+		customUpcomingBulkTemplate, 'Up: {taskName}'
+		);
+
+		expect(result.notifiedTasks).toBe(2);
+
+		// Verify the upcoming bulk template was used
+		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
+		const lastCall = calls[calls.length - 1]!;
+		const arg = lastCall[0] as { body?: string };
+		const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+		expect(body.text).toContain('UPCOMING DIGEST');
+		expect(body.text).not.toContain('Due bulk');
+	});
+
+	it('respects maxTasks across both due and upcoming', async () => {
+		const state = freshState();
+		// 2 due tasks + 2 upcoming tasks = 4 total
+		const tasks = [...dueTodayTasks.slice(0, 2)];
+		const upcoming1 = makeInlineTask({
+			id: 'inline:upcoming/f1.md:2026-06-15:mx01',
+			text: 'Upcoming A',
+			deadline: makeDeadlineDateOnly(2026, 6, 15),
+			deadlineString: '📅 2026-06-15',
+		});
+		const upcoming2 = makeInlineTask({
+			id: 'inline:upcoming/f2.md:2026-06-16:mx02',
+			text: 'Upcoming B',
+			deadline: makeDeadlineDateOnly(2026, 6, 16),
+			deadlineString: '📅 2026-06-16',
+		});
+		tasks.push(upcoming1, upcoming2);
+
+		const result = await checkAndNotify(tasks, BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: false,
+			maxTasks: 3, // Only 3 total allowed
+		},
+		undefined, 'Due: {taskName}', undefined, false,
+		undefined, 'Upcoming: {taskName}'
+		);
+
+		// 2 due + 1 upcoming (maxTasks=3, due tasks consume 2 slots, 1 remaining for upcoming)
+		expect(result.notifiedTasks).toBe(3);
+	});
+
+	it('deduplicates tasks that appear in both due and upcoming lists using separate templates', async () => {
+		const state = freshState();
+		// A task due today should not also be sent as upcoming
+		const tasks = dueTodayTasks;
+
+		const result = await checkAndNotify(tasks, BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: true,
+			maxTasks: 10,
+		},
+		undefined, 'Due: {taskName}', undefined, false,
+		undefined, 'Upcoming: {taskName}'
+		);
+
+		// All 3 due-today tasks, no duplicates from upcoming
+		expect(result.notifiedTasks).toBe(3);
+		// No upcoming tasks should be in the result since all are due-today
+		expect(result.upcomingTasks).toBe(0);
+	});
+
+	it('returns upcomingTasks count in result', async () => {
+		const state = freshState();
+		const upcoming = makeInlineTask({
+			id: 'inline:upcoming/count.md:2026-06-15:ct01',
+			text: 'Count task',
+			deadline: makeDeadlineDateOnly(2026, 6, 15),
+			deadlineString: '📅 2026-06-15',
+		});
+
+		const result = await checkAndNotify([upcoming], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: false,
+			maxTasks: 10,
+		},
+		undefined, 'Due: {taskName}', undefined, false,
+		undefined, 'Upcoming: {taskName}'
+		);
+
+		expect(result.upcomingTasks).toBe(1);
+		expect(result.dueTasks).toBe(0);
+	});
+});

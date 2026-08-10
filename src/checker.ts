@@ -237,15 +237,6 @@ export function markAtTimeInstanceNotified(
 	state.lastCheck = Date.now();
 }
 
-function mergeTasksForNotification(dueTasks: VaultTask[], upcomingTasks: VaultTask[]): VaultTask[] {
-	const seen = new Set<string>();
-	return [...dueTasks, ...upcomingTasks].filter(task => {
-		if (seen.has(task.id)) return false;
-		seen.add(task.id);
-		return true;
-	});
-}
-
 function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
 	return {
 		taskName: task.text,
@@ -353,10 +344,13 @@ export async function checkAndNotify(
 	bulkTemplate?: string,
 	individualTemplate?: string,
 	testTemplate?: string,
-	useMarkdown?: boolean
+	useMarkdown?: boolean,
+	upcomingBulkTemplate?: string,
+	upcomingIndividualTemplate?: string
 ): Promise<{
 	totalTasks: number;
 	dueTasks: number;
+	upcomingTasks: number;
 	notifiedTasks: number;
 	sendResults: TelegramSendResult[];
 	state: NotificationState;
@@ -390,66 +384,121 @@ export async function checkAndNotify(
 			.filter(task => !opts.strictTimeMode || !task.deadline || task.deadline.type !== 'datetime')
 		: [];
 
-	const allTasksToNotify = mergeTasksForNotification(tasksToNotify, upcomingToNotify);
-	const limitedTasks = allTasksToNotify.slice(0, opts.maxTasks);
-
-	if (limitedTasks.length === 0) {
+	if (tasksToNotify.length === 0 && upcomingToNotify.length === 0) {
 		state.lastCheck = Date.now();
 		pruneNotificationState(state);
 		return {
 			totalTasks: allTasks.length,
 			dueTasks: dueTasks.length,
+			upcomingTasks: 0,
 			notifiedTasks: 0,
 			sendResults,
 			state
 		};
 	}
 
-	const useBulk = opts.sendBulk && limitedTasks.length > 1;
+	// --- Send due/overdue tasks using existing templates ---
+	const dueLimitedTasks = tasksToNotify.slice(0, opts.maxTasks);
+	const useBulk = opts.sendBulk && dueLimitedTasks.length > 1;
 
-	if (useBulk) {
-		const formattedTasks = limitedTasks.map(formatTaskForTelegram);
-		const result = await sendBulkReminders(
-			botToken,
-			chatId,
-			formattedTasks,
-			bulkTemplate,
-			individualTemplate,
-			useMarkdown
-		);
-		sendResults.push(result);
-
-		if (result.success) {
-			for (const task of limitedTasks) {
-				markAsNotified(task, state);
-				notifiedTasksCount++;
-			}
-		}
-	} else {
-		for (const task of limitedTasks) {
-			const formattedTask = formatTaskForTelegram(task);
-			const result = await sendTaskReminder(
+	if (dueLimitedTasks.length > 0) {
+		if (useBulk) {
+			const formattedTasks = dueLimitedTasks.map(formatTaskForTelegram);
+			const result = await sendBulkReminders(
 				botToken,
 				chatId,
-				formattedTask.taskName,
-				formattedTask.fileName,
-				formattedTask.deadline,
+				formattedTasks,
+				bulkTemplate,
 				individualTemplate,
-				useMarkdown,
-				formattedTask.filePath,
-				formattedTask.taskId
+				useMarkdown
 			);
 			sendResults.push(result);
 
 			if (result.success) {
-				markAsNotified(task, state);
-				notifiedTasksCount++;
-			} else {
-				console.error(`Failed to send notification for task ${task.id}:`, sanitizeErrorMessage(
-					String(result.error),
+				for (const task of dueLimitedTasks) {
+					markAsNotified(task, state);
+					notifiedTasksCount++;
+				}
+			}
+		} else {
+			for (const task of dueLimitedTasks) {
+				const formattedTask = formatTaskForTelegram(task);
+				const result = await sendTaskReminder(
 					botToken,
-					chatId
-				));
+					chatId,
+					formattedTask.taskName,
+					formattedTask.fileName,
+					formattedTask.deadline,
+					individualTemplate,
+					useMarkdown,
+					formattedTask.filePath,
+					formattedTask.taskId
+				);
+				sendResults.push(result);
+
+				if (result.success) {
+					markAsNotified(task, state);
+					notifiedTasksCount++;
+				} else {
+					console.error(`Failed to send notification for task ${task.id}:`, sanitizeErrorMessage(
+						String(result.error),
+						botToken,
+						chatId
+					));
+				}
+			}
+		}
+	}
+
+	// --- Send upcoming tasks using upcoming-specific templates ---
+	const upcomingLimitedTasks = upcomingToNotify.slice(0, Math.max(0, opts.maxTasks - dueLimitedTasks.length));
+	const useUpcomingBulk = opts.sendBulk && upcomingLimitedTasks.length > 1;
+
+	if (upcomingLimitedTasks.length > 0) {
+		if (useUpcomingBulk) {
+			const formattedTasks = upcomingLimitedTasks.map(formatTaskForTelegram);
+			const result = await sendBulkReminders(
+				botToken,
+				chatId,
+				formattedTasks,
+				upcomingBulkTemplate,
+				upcomingIndividualTemplate,
+				useMarkdown
+			);
+			sendResults.push(result);
+
+			if (result.success) {
+				for (const task of upcomingLimitedTasks) {
+					markAsNotified(task, state);
+					notifiedTasksCount++;
+				}
+			}
+		} else {
+			for (const task of upcomingLimitedTasks) {
+				const formattedTask = formatTaskForTelegram(task);
+				const result = await sendTaskReminder(
+					botToken,
+					chatId,
+					formattedTask.taskName,
+					formattedTask.fileName,
+					formattedTask.deadline,
+					upcomingIndividualTemplate,
+					useMarkdown,
+					formattedTask.filePath,
+					formattedTask.taskId
+				);
+				sendResults.push(result);
+
+				if (result.success) {
+					markAsNotified(task, state);
+					notifiedTasksCount++;
+				} else {
+					console.error(`Failed to send upcoming notification for task ${task.id}:`, sanitizeErrorMessage(
+						String(result.error),
+						botToken,
+						chatId
+					));
+				}
 			}
 		}
 	}
@@ -459,6 +508,7 @@ export async function checkAndNotify(
 	return {
 		totalTasks: allTasks.length,
 		dueTasks: dueTasks.length,
+		upcomingTasks: upcomingLimitedTasks.length,
 		notifiedTasks: notifiedTasksCount,
 		sendResults,
 		state
@@ -473,7 +523,9 @@ export async function checkDeadlines(
 	bulkTemplate?: string,
 	individualTemplate?: string,
 	useMarkdown?: boolean,
-	checkOptions?: Partial<CheckDeadlinesOptions>
+	checkOptions?: Partial<CheckDeadlinesOptions>,
+	upcomingBulkTemplate?: string,
+	upcomingIndividualTemplate?: string
 ): Promise<NotificationState> {
 	try {
 		const result = await checkAndNotify(allTasks, botToken, chatId, state, {
@@ -481,7 +533,7 @@ export async function checkDeadlines(
 			checkOverdue: true,
 			sendBulk: true,
 			...checkOptions
-		}, bulkTemplate, individualTemplate, undefined, useMarkdown);
+		}, bulkTemplate, individualTemplate, undefined, useMarkdown, upcomingBulkTemplate, upcomingIndividualTemplate);
 
 		if (result.notifiedTasks > 0) {
 			new Notice(`Sent ${result.notifiedTasks} reminder(s) to Telegram`);
