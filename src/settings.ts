@@ -1,4 +1,5 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
+import type {SettingDefinitionControl, SettingDefinitionItem} from "obsidian";
 
 import ReminderTelegramPlugin from "./main";
 import {sendTestNotification} from "./checker";
@@ -37,6 +38,8 @@ export interface ReminderTelegramSettings {
 	reminderSyntaxEnabled: boolean;
 	/** Recognize Kanban-plugin inline syntax (`@YYYY-MM-DD` date-only, `@YYYY-MM-DD @@HH:MM` datetime). */
 	kanbanSyntaxEnabled: boolean;
+	/** Recognize recurring-task syntax (`🔁 every …`) and auto-reschedule on completion. */
+	recurringTasksEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -61,7 +64,8 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	atTimeCatchUpWindowMinutes: 60,
 	strictTimeMode: false,
 	reminderSyntaxEnabled: true,
-	kanbanSyntaxEnabled: true
+	kanbanSyntaxEnabled: true,
+	recurringTasksEnabled: true
 };
 
 // ---------------------------------------------------------------------------
@@ -122,17 +126,19 @@ export function validateKanbanSyntaxEnabled(value: unknown): boolean {
 	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.kanbanSyntaxEnabled;
 }
 
+/** Coerce a value to a boolean; fall back to the default when non-boolean. */
+export function validateRecurringTasksEnabled(value: unknown): boolean {
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.recurringTasksEnabled;
+}
+
 export class ReminderTelegramSettingTab extends PluginSettingTab {
 	plugin: ReminderTelegramPlugin;
-	private previewElements?: {
-		individual: HTMLElement;
-		bulk: HTMLElement;
-		test: HTMLElement;
-		upcomingIndividual: HTMLElement;
-		upcomingBulk: HTMLElement;
-	};
 	private saveTimer: number | null = null;
 	private readonly SAVE_DEBOUNCE_MS = 500;
+	/** Legacy (<1.13) handle to the target-folder row, toggled by scan-mode changes. */
+	private legacyFolderRowEl: HTMLElement | null = null;
+	/** Root of the live-preview panel (re-created per render — survives re-renders). */
+	private previewRootEl: HTMLElement | null = null;
 
 	/** Debounced save for text/textarea inputs that fire onChange on every keystroke. */
 	private debouncedSave(): void {
@@ -147,328 +153,499 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
+	// -----------------------------------------------------------------------
+	// Declarative settings model — the single source of truth for the tab.
+	//
+	// Renderers:
+	//   • getSettingDefinitions()  — Obsidian ≥ 1.13 renders this natively.
+	//   • display()                — Obsidian < 1.13 renders the same model
+	//                                imperatively (see renderDefinitionLegacy).
+	// Keeping both means the plugin still works on Obsidian 1.7.2+ (the
+	// declared minAppVersion) while adopting the modern declarative API.
+	// -----------------------------------------------------------------------
+
+	override getSettingDefinitions(): SettingDefinitionItem[] {
+		return this.buildDefinitions();
+	}
+
+	/** Legacy renderer for Obsidian < 1.13 (minAppVersion 1.7.2). */
+	 
+	override display(): void {
 		const {containerEl} = this;
 		containerEl.empty();
-		new Setting(containerEl)
-			.setName('Telegram')
-			.setDesc('Connect this plugin to your bot and your chat.')
-			.setHeading();
-		this.renderTelegramSetupGuide(containerEl);
-		new Setting(containerEl)
-			.setName('Telegram bot token')
-			.setDesc('Paste the token you get when your new bot is ready.')
-			.addText(text => {
-				text
-					.setPlaceholder('123456789:abc-def123456789')
-					.setValue(this.plugin.settings.telegramBotToken)
-					.onChange(async (value): Promise<void> => {
-						this.plugin.settings.telegramBotToken = value;
-						this.debouncedSave();
-					});
-				text.inputEl.type = 'password';
-			});
-		new Setting(containerEl)
-			.setName('Telegram chat ID')
-			.setDesc('Paste the numeric chat ID userinfobot replies with.')
-			.addText(text => {
-				text
-					.setPlaceholder('123456789')
-					.setValue(this.plugin.settings.telegramChatId)
-					.onChange(async (value): Promise<void> => {
-						this.plugin.settings.telegramChatId = value;
-						this.debouncedSave();
-					});
-				text.inputEl.type = 'password';
-			});
-		new Setting(containerEl)
-			.setName('Notifications enabled')
-			.setDesc('Enable or disable Telegram notifications')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.notificationsEnabled)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.notificationsEnabled = value;
-					this.debouncedSave();
-				}));
-		new Setting(containerEl)
-			.setName('Check interval (minutes)')
-			.setDesc('How often to check for due tasks')
-			.addText(text => text
-				.setPlaceholder('30')
-				.setValue(this.plugin.settings.checkIntervalMinutes.toString())
-				.onChange(async (value): Promise<void> => {
-					const numValue = parseInt(value) || 30;
-					this.plugin.settings.checkIntervalMinutes = numValue;
-					this.debouncedSave();
-				}));
-
-		// --- At-time notifications (issue #89) -----------------------------
-		new Setting(containerEl)
-			.setName('At-time notifications')
-			.setDesc('Fire reminders at the precise deadline of a task. Date-only tasks are unaffected; only tasks with a time component are gated by this section.')
-			.setHeading();
-		new Setting(containerEl)
-			.setName('At-time notifications enabled')
-			.setDesc('Master switch for the at-time notification pipeline.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.atTimeNotificationsEnabled)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.atTimeNotificationsEnabled = value;
-					this.debouncedSave();
-				}));
-		new Setting(containerEl)
-			.setName('Reminder syntax')
-			.setDesc('Recognize plugin syntax for at-time reminders: @2026-07-22 12:30, (@2026-07-22 12:30), (@2026-07-22).')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.reminderSyntaxEnabled)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.reminderSyntaxEnabled = value;
-					this.debouncedSave();
-				}));
-		new Setting(containerEl)
-			.setName('Kanban syntax')
-			.setDesc('Recognize plugin syntax for due dates: @2026-07-22 (date), @2026-07-22 @@14:30 (date + time).')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.kanbanSyntaxEnabled)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.kanbanSyntaxEnabled = value;
-					this.debouncedSave();
-				}));
-		new Setting(containerEl)
-			.setName('Lead time (minutes)')
-			.setDesc('Minutes before the deadline to fire. 0 = sharp. Range: 0–1440 (24h).')
-			.addText(text => text
-				.setPlaceholder('0')
-				.setValue(this.plugin.settings.leadTimeMinutes.toString())
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.leadTimeMinutes = validateLeadTimeMinutes(value);
-					this.debouncedSave();
-				}));
-		new Setting(containerEl)
-			.setName('Catch-up window (minutes)')
-			.setDesc('Max delay (minutes) accepted on the next app open for an overdue at-time notification. 0 disables catch-up. Range: 0–10080 (7 days).')
-			.addText(text => text
-				.setPlaceholder('60')
-				.setValue(this.plugin.settings.atTimeCatchUpWindowMinutes.toString())
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.atTimeCatchUpWindowMinutes = validateAtTimeCatchUpWindowMinutes(value);
-					this.debouncedSave();
-				}));
-		new Setting(containerEl)
-			.setName('Strict time mode')
-			.setDesc('If on, at-time tasks bypass the periodic interval check and only fire at their scheduled time.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.strictTimeMode)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.strictTimeMode = value;
-					this.debouncedSave();
-				}));
-		// Small notice below the strict-mode toggle (always visible).
-		// Renders as a muted paragraph so it doesn't compete visually with the toggle.
-		containerEl.createEl('p', {
-			cls: 'setting-item-description',
-			text: 'Date-only tasks are unaffected; only at-time tasks are gated by this setting.'
-		});
-		// -------------------------------------------------------------------
-
-		new Setting(containerEl)
-			.setName('Max tasks per check')
-			.setDesc('Maximum number of due and upcoming tasks to notify per run. Additional tasks stay queued for the next check.')
-			.addText(text => text
-				.setPlaceholder('10')
-				.setValue(this.plugin.settings.maxTasksPerCheck.toString())
-				.onChange(async (value): Promise<void> => {
-					const n = parseInt(value, 10);
-					this.plugin.settings.maxTasksPerCheck = Number.isFinite(n) && n >= 1 ? n : DEFAULT_SETTINGS.maxTasksPerCheck;
-					this.debouncedSave();
-				}));
-
-		new Setting(containerEl)
-			.setName('Upcoming reminders')
-			.setDesc('Notify for tasks due after today within the days-ahead range below. Due and overdue tasks are always checked separately.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.upcomingRemindersEnabled)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.upcomingRemindersEnabled = value;
-					this.debouncedSave();
-				}));
-
-		new Setting(containerEl)
-			.setName('Days ahead for upcoming')
-			.setDesc('How many calendar days ahead to include (1 = tomorrow only; 0 disables upcoming even when the toggle is on).')
-			.addText(text => text
-				.setPlaceholder('1')
-				.setValue(this.plugin.settings.upcomingRemindersDaysAhead.toString())
-				.onChange(async (value): Promise<void> => {
-					const n = parseInt(value, 10);
-					this.plugin.settings.upcomingRemindersDaysAhead = Number.isFinite(n) && n >= 0 ? n : DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
-					this.debouncedSave();
-				}));
-
-		// Upcoming message templates
-		const upcomingBulkTemplateSetting = new Setting(containerEl)
-			.setName('Upcoming bulk template')
-			.setDesc('Template for multiple upcoming tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual upcoming template below.');
-		upcomingBulkTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
-		upcomingBulkTemplateSetting.addTextArea(text => {
-			text
-				.setPlaceholder('You have {count} upcoming task(s):\n\n{tasks}')
-				.setValue(this.plugin.settings.upcomingBulkMessageTemplate)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.upcomingBulkMessageTemplate = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
-				});
-			text.inputEl.addClass('reminder-telegram-template-textarea');
-		});
-		this.renderVariableChips(upcomingBulkTemplateSetting.settingEl, ['count', 'tasks']);
-		this.renderCharacterCounter(upcomingBulkTemplateSetting.settingEl, this.plugin.settings.upcomingBulkMessageTemplate);
-
-		const upcomingIndividualTemplateSetting = new Setting(containerEl)
-			.setName('Upcoming individual template')
-			.setDesc('Template for a single upcoming task and for each line in an upcoming bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
-		upcomingIndividualTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
-		upcomingIndividualTemplateSetting.addTextArea(text => {
-			text
-				.setPlaceholder('📋 Upcoming Task\n\nTask: {taskName}\nFile: {fileName}\nDue: {deadline}')
-				.setValue(this.plugin.settings.upcomingMessageTemplate)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.upcomingMessageTemplate = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
-				});
-			text.inputEl.addClass('reminder-telegram-template-textarea');
-		});
-		this.renderVariableChips(upcomingIndividualTemplateSetting.settingEl, ['taskName', 'fileName', 'deadline', 'filePath', 'taskId']);
-		this.renderCharacterCounter(upcomingIndividualTemplateSetting.settingEl, this.plugin.settings.upcomingMessageTemplate);
-
-		containerEl.createEl('hr');
-		new Setting(containerEl)
-			.setName('Scan mode')
-			.setDesc('Choose whether to scan the whole vault or a specific folder')
-			.addDropdown(dropdown => {
-				dropdown.addOption('whole-vault', 'Whole vault');
-				dropdown.addOption('specific-folder', 'Specific folder');
-				dropdown.setValue(this.plugin.settings.scanMode);
-				dropdown.onChange(async (value: 'whole-vault' | 'specific-folder'): Promise<void> => {
-					this.plugin.settings.scanMode = value;
-					this.debouncedSave();
-					// `display()` is deprecated in 1.13+ in favor of `getSettingDefinitions()`,
-					// but we keep the imperative form so the plugin still works on Obsidian < 1.13
-					// (minAppVersion: 1.4.0).
-					this.display();
-				});
-			});
-		if (this.plugin.settings.scanMode === 'specific-folder') {
-			new Setting(containerEl)
-				.setName('Target folder')
-				.setDesc('Path to folder to scan for tasks')
-				.addText(text => text
-					.setPlaceholder('Tasks')
-					.setValue(this.plugin.settings.targetFolder)
-					.onChange(async (value): Promise<void> => {
-						this.plugin.settings.targetFolder = value;
-						this.debouncedSave();
-					}));
+		this.legacyFolderRowEl = null;
+		for (const item of this.buildDefinitions()) {
+			this.renderDefinitionLegacy(containerEl, item);
 		}
-		containerEl.createEl('hr');
-		// Message templates
-		new Setting(containerEl)
-			.setName('Message templates')
-			.setDesc('Customize Telegram notification messages')
-			.setHeading();
+	}
 
-		// Multi-task digest template (formerly "Bulk message template")
-		const bulkTemplateSetting = new Setting(containerEl)
-			.setName('Multi-task digest')
-			.setDesc('Template for multiple tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual template below.');
-		bulkTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
-		bulkTemplateSetting.addTextArea(text => {
-			text
-				.setPlaceholder('You have {count} task(s) due:\n\n{tasks}')
-				.setValue(this.plugin.settings.bulkMessageTemplate)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.bulkMessageTemplate = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
+	/** Reads a key-bound control's value from plugin settings. */
+	override getControlValue(key: string): unknown {
+		return (this.plugin.settings as unknown as Record<string, unknown>)[key];
+	}
+
+	/**
+	 * Persists a key-bound control's value and applies side effects.
+	 * Shared by the 1.13+ framework binding and the legacy renderer.
+	 */
+	override setControlValue(key: string, value: unknown): void | Promise<void> {
+		(this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
+		void this.plugin.saveSettings();
+		if (key === 'scanMode') {
+			// 1.13+: re-render so `visible` conditions (target-folder row) re-evaluate.
+			if (typeof this.update === 'function') {
+				this.update();
+			}
+			// <1.13: toggle the already-rendered folder row in place.
+			if (this.legacyFolderRowEl) {
+				this.legacyFolderRowEl.style.display = value === 'specific-folder' ? '' : 'none';
+			}
+		} else if (key === 'livePreviewEnabled' || key === 'useMarkdownFormatting') {
+			this.updateTemplatePreviews();
+		}
+	}
+
+	/**
+	 * Build the declarative settings model. Rows that need imperative
+	 * control (password inputs, numeric coercion, template textareas with
+	 * chips/counters, guide, previews, buttons) use `render` definitions;
+	 * everything else uses key-bound controls.
+	 */
+	private buildDefinitions(): SettingDefinitionItem[] {
+		const settings = this.plugin.settings;
+		return [
+			{
+				type: 'group',
+				heading: 'Telegram',
+				items: [
+					{
+						name: 'Telegram setup guide',
+						searchable: false,
+						render: (setting) => this.renderTelegramSetupGuide(setting.settingEl),
+					},
+					{
+						name: 'Telegram bot token',
+						desc: 'Paste the token you get when your new bot is ready.',
+						render: (setting) => {
+							setting.addText(text => {
+								text
+									.setPlaceholder('123456789:abc-def123456789')
+									.setValue(settings.telegramBotToken)
+									.onChange(async (value): Promise<void> => {
+										settings.telegramBotToken = value;
+										this.debouncedSave();
+									});
+								text.inputEl.type = 'password';
+							});
+						},
+					},
+					{
+						name: 'Telegram chat ID',
+						desc: 'Paste the numeric chat ID userinfobot replies with.',
+						render: (setting) => {
+							setting.addText(text => {
+								text
+									.setPlaceholder('123456789')
+									.setValue(settings.telegramChatId)
+									.onChange(async (value): Promise<void> => {
+										settings.telegramChatId = value;
+										this.debouncedSave();
+									});
+								text.inputEl.type = 'password';
+							});
+						},
+					},
+					{
+						name: 'Notifications enabled',
+						desc: 'Enable or disable Telegram notifications',
+						control: {type: 'toggle', key: 'notificationsEnabled'},
+					},
+					{
+						name: 'Check interval (minutes)',
+						desc: 'How often to check for due tasks',
+						render: (setting) => {
+							setting.addText(text => text
+								.setPlaceholder('30')
+								.setValue(settings.checkIntervalMinutes.toString())
+								.onChange(async (value): Promise<void> => {
+									const numValue = parseInt(value) || 30;
+									settings.checkIntervalMinutes = numValue;
+									this.debouncedSave();
+								}));
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'At-time notifications',
+				items: [
+					{
+						name: 'At-time notifications enabled',
+						desc: 'Master switch for the at-time notification pipeline.',
+						control: {type: 'toggle', key: 'atTimeNotificationsEnabled'},
+					},
+					{
+						name: 'Reminder syntax',
+						desc: 'Recognize plugin syntax for at-time reminders: @2026-07-22 12:30, (@2026-07-22 12:30), (@2026-07-22).',
+						control: {type: 'toggle', key: 'reminderSyntaxEnabled'},
+					},
+					{
+						name: 'Kanban syntax',
+						desc: 'Recognize plugin syntax for due dates: @2026-07-22 (date), @2026-07-22 @@14:30 (date + time).',
+						control: {type: 'toggle', key: 'kanbanSyntaxEnabled'},
+					},
+					{
+						name: 'Lead time (minutes)',
+						desc: 'Minutes before the deadline to fire. 0 = sharp. Range: 0–1440 (24h).',
+						render: (setting) => {
+							setting.addText(text => text
+								.setPlaceholder('0')
+								.setValue(settings.leadTimeMinutes.toString())
+								.onChange(async (value): Promise<void> => {
+									settings.leadTimeMinutes = validateLeadTimeMinutes(value);
+									this.debouncedSave();
+								}));
+						},
+					},
+					{
+						name: 'Catch-up window (minutes)',
+						desc: 'Max delay (minutes) accepted on the next app open for an overdue at-time notification. 0 disables catch-up. Range: 0–10080 (7 days).',
+						render: (setting) => {
+							setting.addText(text => text
+								.setPlaceholder('60')
+								.setValue(settings.atTimeCatchUpWindowMinutes.toString())
+								.onChange(async (value): Promise<void> => {
+									settings.atTimeCatchUpWindowMinutes = validateAtTimeCatchUpWindowMinutes(value);
+									this.debouncedSave();
+								}));
+						},
+					},
+					{
+						name: 'Strict time mode',
+						desc: 'If on, at-time tasks bypass the periodic interval check and only fire at their scheduled time.',
+						control: {type: 'toggle', key: 'strictTimeMode'},
+					},
+					// Small notice below the strict-mode toggle (always visible).
+					// Renders as a muted paragraph so it doesn't compete visually with the toggle.
+					{
+						name: 'Strict time notice',
+						searchable: false,
+						render: (setting) => {
+							setting.settingEl.createEl('p', {
+								cls: 'setting-item-description',
+								text: 'Date-only tasks are unaffected; only at-time tasks are gated by this setting.',
+							});
+						},
+					},
+					{
+						name: 'Max tasks per check',
+						desc: 'Maximum number of due and upcoming tasks to notify per run. Additional tasks stay queued for the next check.',
+						render: (setting) => {
+							setting.addText(text => text
+								.setPlaceholder('10')
+								.setValue(settings.maxTasksPerCheck.toString())
+								.onChange(async (value): Promise<void> => {
+									const n = parseInt(value, 10);
+									settings.maxTasksPerCheck = Number.isFinite(n) && n >= 1 ? n : DEFAULT_SETTINGS.maxTasksPerCheck;
+									this.debouncedSave();
+								}));
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Recurring tasks',
+				items: [
+					{
+						name: 'Recurring tasks',
+						desc: 'When on, completing a task with 🔁 every … syntax (e.g. "🔁 every day", "🔁 every week on Sunday") reschedules it to its next occurrence and re-opens the checkbox.',
+						control: {type: 'toggle', key: 'recurringTasksEnabled'},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Upcoming reminders',
+				items: [
+					{
+						name: 'Upcoming reminders',
+						desc: 'Notify for tasks due after today within the days-ahead range below. Due and overdue tasks are always checked separately.',
+						control: {type: 'toggle', key: 'upcomingRemindersEnabled'},
+					},
+					{
+						name: 'Days ahead for upcoming',
+						desc: 'How many calendar days ahead to include (1 = tomorrow only; 0 disables upcoming even when the toggle is on).',
+						render: (setting) => {
+							setting.addText(text => text
+								.setPlaceholder('1')
+								.setValue(settings.upcomingRemindersDaysAhead.toString())
+								.onChange(async (value): Promise<void> => {
+									const n = parseInt(value, 10);
+									settings.upcomingRemindersDaysAhead = Number.isFinite(n) && n >= 0
+										? n
+										: DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
+									this.debouncedSave();
+								}));
+						},
+					},
+					{
+						name: 'Upcoming bulk template',
+						desc: 'Template for multiple upcoming tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual upcoming template below.',
+						render: (setting) => {
+							setting.settingEl.addClass('reminder-telegram-template-setting');
+							setting.addTextArea(text => {
+								text
+									.setPlaceholder('You have {count} upcoming task(s):\n\n{tasks}')
+									.setValue(settings.upcomingBulkMessageTemplate)
+									.onChange(async (value): Promise<void> => {
+										settings.upcomingBulkMessageTemplate = value;
+										this.debouncedSave();
+										this.updateTemplatePreviews();
+									});
+								text.inputEl.addClass('reminder-telegram-template-textarea');
+							});
+							this.renderVariableChips(setting.settingEl, ['count', 'tasks']);
+							this.renderCharacterCounter(setting.settingEl, settings.upcomingBulkMessageTemplate);
+						},
+					},
+					{
+						name: 'Upcoming individual template',
+						desc: 'Template for a single upcoming task and for each line in an upcoming bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}',
+						render: (setting) => {
+							setting.settingEl.addClass('reminder-telegram-template-setting');
+							setting.addTextArea(text => {
+								text
+									.setPlaceholder('📋 Upcoming Task\n\nTask: {taskName}\nFile: {fileName}\nDue: {deadline}')
+									.setValue(settings.upcomingMessageTemplate)
+									.onChange(async (value): Promise<void> => {
+										settings.upcomingMessageTemplate = value;
+										this.debouncedSave();
+										this.updateTemplatePreviews();
+									});
+								text.inputEl.addClass('reminder-telegram-template-textarea');
+							});
+							this.renderVariableChips(setting.settingEl, ['taskName', 'fileName', 'deadline', 'filePath', 'taskId']);
+							this.renderCharacterCounter(setting.settingEl, settings.upcomingMessageTemplate);
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Scanning',
+				items: [
+					{
+						name: 'Scan mode',
+						desc: 'Choose whether to scan the whole vault or a specific folder',
+						control: {
+							type: 'dropdown',
+							key: 'scanMode',
+							options: {
+								'whole-vault': 'Whole vault',
+								'specific-folder': 'Specific folder',
+							},
+						},
+					},
+					{
+						name: 'Target folder',
+						desc: 'Path to folder to scan for tasks',
+						visible: () => this.plugin.settings.scanMode === 'specific-folder',
+						control: {type: 'text', key: 'targetFolder', placeholder: 'Tasks'},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Message templates',
+				items: [
+					{
+						name: 'Multi-task digest',
+						desc: 'Template for multiple tasks. Variables: {count}, {tasks}. Each line in {tasks} uses the individual template below.',
+						render: (setting) => {
+							setting.settingEl.addClass('reminder-telegram-template-setting');
+							setting.addTextArea(text => {
+								text
+									.setPlaceholder('You have {count} task(s) due:\n\n{tasks}')
+									.setValue(settings.bulkMessageTemplate)
+									.onChange(async (value): Promise<void> => {
+										settings.bulkMessageTemplate = value;
+										this.debouncedSave();
+										this.updateTemplatePreviews();
+									});
+								text.inputEl.addClass('reminder-telegram-template-textarea');
+							});
+							this.renderVariableChips(setting.settingEl, ['count', 'tasks']);
+							this.renderCharacterCounter(setting.settingEl, settings.bulkMessageTemplate);
+						},
+					},
+					{
+						name: 'Individual message template',
+						desc: 'Template for a single task and for each line in a bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}',
+						render: (setting) => {
+							setting.settingEl.addClass('reminder-telegram-template-setting');
+							setting.addTextArea(text => {
+								text
+									.setPlaceholder('Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}')
+									.setValue(settings.individualMessageTemplate)
+									.onChange(async (value): Promise<void> => {
+										settings.individualMessageTemplate = value;
+										this.debouncedSave();
+										this.updateTemplatePreviews();
+									});
+								text.inputEl.addClass('reminder-telegram-template-textarea');
+							});
+							this.renderVariableChips(setting.settingEl, ['taskName', 'fileName', 'deadline', 'filePath', 'taskId']);
+							this.renderCharacterCounter(setting.settingEl, settings.individualMessageTemplate);
+						},
+					},
+					{
+						name: 'Test message template',
+						desc: 'Template for test notifications. Variables: none (raw text).',
+						render: (setting) => {
+							setting.settingEl.addClass('reminder-telegram-template-setting');
+							setting.addTextArea(text => {
+								text
+									.setPlaceholder('Test notification from reminder Telegram plugin')
+									.setValue(settings.testMessageTemplate)
+									.onChange(async (value): Promise<void> => {
+										settings.testMessageTemplate = value;
+										this.debouncedSave();
+										this.updateTemplatePreviews();
+									});
+								text.inputEl.addClass('reminder-telegram-template-textarea');
+							});
+							this.renderCharacterCounter(setting.settingEl, settings.testMessageTemplate);
+						},
+					},
+					{
+						name: 'Live preview',
+						desc: 'Show real-time preview of notification templates',
+						control: {type: 'toggle', key: 'livePreviewEnabled'},
+					},
+					{
+						name: 'Use Markdown formatting',
+						desc: 'Enable Telegram Markdown formatting for messages. Example: *bold*, _italic_, [links](https://example.com)',
+						control: {type: 'toggle', key: 'useMarkdownFormatting'},
+					},
+				],
+			},
+			// Live preview panel + test button (rendered after the groups).
+			{
+				name: 'Message preview',
+				searchable: false,
+				render: (setting) => this.renderPreviewPanel(setting.settingEl),
+			},
+			{
+				name: 'Test notification',
+				desc: 'Send a test message to verify your settings',
+				render: (setting) => {
+					setting.addButton(button => button
+						.setButtonText('Send test')
+						.onClick(async (): Promise<void> => {
+							await this.sendTestNotification();
+						}));
+				},
+			},
+		];
+	}
+
+	/** Imperative interpreter of the declarative model — Obsidian < 1.13. */
+	private renderDefinitionLegacy(containerEl: HTMLElement, item: SettingDefinitionItem): void {
+		if ('type' in item) {
+			// Containers: group / list / page.
+			if (item.type === 'group' || item.type === 'list') {
+				if (item.heading) {
+					new Setting(containerEl).setName(item.heading).setHeading();
+				}
+				for (const child of item.items ?? []) {
+					this.renderDefinitionLegacy(containerEl, child);
+				}
+			}
+			return; // 'page' is not used by this tab
+		}
+		// item is a SettingDefinition (render / action / control / empty).
+		if (item.render) {
+			const setting = new Setting(containerEl);
+			if (item.name) setting.setName(item.name);
+			if (item.desc) setting.setDesc(item.desc);
+			item.render(setting, undefined as never);
+			return;
+		}
+		if (item.action) {
+			const setting = new Setting(containerEl);
+			if (item.name) setting.setName(item.name);
+			if (item.desc) setting.setDesc(item.desc);
+			setting.addButton(button => button
+				.setButtonText(item.name)
+				.onClick(() => item.action(setting.settingEl, 0)));
+			return;
+		}
+		if (item.control) {
+			this.renderControlLegacy(containerEl, item);
+			return;
+		}
+		// Empty definition — a plain name/desc row.
+		const setting = new Setting(containerEl);
+		if (item.name) setting.setName(item.name);
+		if (item.desc) setting.setDesc(item.desc);
+	}
+
+	/**
+	 * Legacy rendering for a key-bound control. The target-folder row is
+	 * always rendered and toggled in place by scan-mode changes (there is no
+	 * update() on Obsidian < 1.13).
+	 */
+	private renderControlLegacy(containerEl: HTMLElement, def: SettingDefinitionControl): void {
+		const isTargetFolder = def.control.key === 'targetFolder';
+		const visible = isTargetFolder
+			|| (typeof def.visible === 'function' ? def.visible() : def.visible !== false);
+		if (!visible) return;
+
+		const setting = new Setting(containerEl);
+		if (def.name) setting.setName(def.name);
+		if (def.desc) setting.setDesc(def.desc);
+
+		const control = def.control;
+		const key = control.key;
+		switch (control.type) {
+			case 'toggle':
+				setting.addToggle(toggle => toggle
+					.setValue(Boolean(this.getControlValue(key)))
+					.onChange(async (value): Promise<void> => {
+						void this.setControlValue(key, value);
+					}));
+				break;
+			case 'dropdown':
+				setting.addDropdown(dropdown => {
+					for (const [value, label] of Object.entries(control.options)) {
+						dropdown.addOption(value, label);
+					}
+					dropdown.setValue(String(this.getControlValue(key)));
+					dropdown.onChange(async (value): Promise<void> => {
+						void this.setControlValue(key, value);
+					});
 				});
-			text.inputEl.addClass('reminder-telegram-template-textarea');
-		});
-		this.renderVariableChips(bulkTemplateSetting.settingEl, ['count', 'tasks']);
-		this.renderCharacterCounter(bulkTemplateSetting.settingEl, this.plugin.settings.bulkMessageTemplate);
-
-		// Individual message template
-		const individualTemplateSetting = new Setting(containerEl)
-			.setName('Individual message template')
-			.setDesc('Template for a single task and for each line in a bulk message. Variables: {taskName}, {fileName}, {deadline}, {filePath}, {taskId}');
-		individualTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
-		individualTemplateSetting.addTextArea(text => {
-			text
-				.setPlaceholder('Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}')
-				.setValue(this.plugin.settings.individualMessageTemplate)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.individualMessageTemplate = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
-				});
-			text.inputEl.addClass('reminder-telegram-template-textarea');
-		});
-		this.renderVariableChips(individualTemplateSetting.settingEl, ['taskName', 'fileName', 'deadline', 'filePath', 'taskId']);
-		this.renderCharacterCounter(individualTemplateSetting.settingEl, this.plugin.settings.individualMessageTemplate);
-
-		// Test message template with textarea and preview
-		const testTemplateSetting = new Setting(containerEl)
-			.setName('Test message template')
-			.setDesc('Template for test notifications. Variables: none (raw text).');
-		testTemplateSetting.settingEl.addClass('reminder-telegram-template-setting');
-		testTemplateSetting.addTextArea(text => {
-			text
-				.setPlaceholder('Test notification from reminder Telegram plugin')
-				.setValue(this.plugin.settings.testMessageTemplate)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.testMessageTemplate = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
-				});
-			text.inputEl.addClass('reminder-telegram-template-textarea');
-		});
-		this.renderCharacterCounter(testTemplateSetting.settingEl, this.plugin.settings.testMessageTemplate);
-
-		// Live preview toggle
-		new Setting(containerEl)
-			.setName('Live preview')
-			.setDesc('Show real-time preview of notification templates')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.livePreviewEnabled)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.livePreviewEnabled = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
-				}));
-
-		// Markdown formatting with example
-		const markdownSetting = new Setting(containerEl)
-			.setName('Use Markdown formatting')
-			.setDesc('Enable Telegram Markdown formatting for messages. Example: *bold*, _italic_, [links](https://example.com)');
-		markdownSetting.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.useMarkdownFormatting)
-				.onChange(async (value): Promise<void> => {
-					this.plugin.settings.useMarkdownFormatting = value;
-					this.debouncedSave();
-					this.updateTemplatePreviews();
-				}));
-
-		// Preview panel
-		this.renderPreviewPanel(containerEl);
-		containerEl.createEl('hr');
-		new Setting(containerEl)
-			.setName('Test notification')
-			.setDesc('Send a test message to verify your settings')
-			.addButton(button => button
-				.setButtonText('Send test')
-				.onClick(async (): Promise<void> => {
-					await this.sendTestNotification();
-				}));
+				break;
+			case 'text': {
+				const current = this.getControlValue(key);
+				setting.addText(text => text
+					.setPlaceholder(control.placeholder ?? '')
+					.setValue(typeof current === 'string' ? current : '')
+					.onChange(async (value): Promise<void> => {
+						void this.setControlValue(key, value);
+					}));
+				if (isTargetFolder) {
+					this.legacyFolderRowEl = setting.settingEl;
+					setting.settingEl.style.display = this.plugin.settings.scanMode === 'specific-folder' ? '' : 'none';
+				}
+				break;
+			}
+			default:
+				// number/file/folder/slider/color controls are not used by this tab.
+				break;
+		}
 	}
 
 	private renderTelegramSetupGuide(container: HTMLElement): void {
@@ -547,7 +724,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					textarea.value = value.substring(0, start) + `{${variable}}` + value.substring(end);
 					textarea.selectionStart = textarea.selectionEnd = start + `{${variable}}`.length;
 					textarea.focus();
-					
+
 					// Trigger change event
 					const event = new Event('change', {bubbles: true});
 					textarea.dispatchEvent(event);
@@ -592,68 +769,84 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 	}
 
 	/**
-	 * Renders template preview panel
+	 * Renders template preview panel. Stores the panel root so preview
+	 * updates can re-query the section nodes — which survive re-renders
+	 * (e.g. scan-mode `update()` on Obsidian 1.13+).
 	 */
 	private renderPreviewPanel(container: HTMLElement): void {
 		const previewContainer = container.createDiv({cls: 'reminder-telegram-preview-container'});
-		
+		this.previewRootEl = previewContainer;
+
 		// Preview header
 		const header = previewContainer.createDiv({cls: 'reminder-telegram-preview-header'});
 		header.createSpan({cls: 'reminder-telegram-preview-title', text: 'Preview'});
-		
+
 		// Individual template preview
 		const individualPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
 		individualPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Individual task:'});
-		const individualPreviewContent = individualPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		const individualPreviewContent = individualPreview.createDiv({cls: 'reminder-telegram-preview-content reminder-telegram-preview-content-individual'});
 		individualPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
-		
+
 		// Bulk template preview
 		const bulkPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
 		bulkPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Multi-task digest:'});
-		const bulkPreviewContent = bulkPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		const bulkPreviewContent = bulkPreview.createDiv({cls: 'reminder-telegram-preview-content reminder-telegram-preview-content-bulk'});
 		bulkPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
-		
+
 		// Test template preview
 		const testPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
 		testPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Test notification:'});
-		const testPreviewContent = testPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		const testPreviewContent = testPreview.createDiv({cls: 'reminder-telegram-preview-content reminder-telegram-preview-content-test'});
 		testPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
 
 		// Upcoming individual template preview
 		const upcomingIndividualPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
 		upcomingIndividualPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Upcoming individual:'});
-		const upcomingIndividualPreviewContent = upcomingIndividualPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		const upcomingIndividualPreviewContent = upcomingIndividualPreview.createDiv({cls: 'reminder-telegram-preview-content reminder-telegram-preview-content-upcoming-individual'});
 		upcomingIndividualPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
 
 		// Upcoming bulk template preview
 		const upcomingBulkPreview = previewContainer.createDiv({cls: 'reminder-telegram-preview-section'});
 		upcomingBulkPreview.createSpan({cls: 'reminder-telegram-preview-label', text: 'Upcoming bulk:'});
-		const upcomingBulkPreviewContent = upcomingBulkPreview.createDiv({cls: 'reminder-telegram-preview-content'});
+		const upcomingBulkPreviewContent = upcomingBulkPreview.createDiv({cls: 'reminder-telegram-preview-content reminder-telegram-preview-content-upcoming-bulk'});
 		upcomingBulkPreviewContent.createSpan({cls: 'reminder-telegram-preview-placeholder', text: 'Preview will appear here when enabled'});
 
-		// Store references for updates
-		this.previewElements = {
-			individual: individualPreviewContent,
-			bulk: bulkPreviewContent,
-			test: testPreviewContent,
-			upcomingIndividual: upcomingIndividualPreviewContent,
-			upcomingBulk: upcomingBulkPreviewContent
-		};
-		
 		// Initial update
 		this.updateTemplatePreviews();
+	}
+
+	/**
+	 * Locate the preview section nodes inside the current panel root. Uses
+	 * class-based lookup so the refs stay valid across re-renders.
+	 */
+	private getPreviewElements(): {
+		individual: HTMLElement;
+		bulk: HTMLElement;
+		test: HTMLElement;
+		upcomingIndividual: HTMLElement;
+		upcomingBulk: HTMLElement;
+	} | null {
+		if (!this.previewRootEl) return null;
+		const q = (cls: string): HTMLElement | null => this.previewRootEl!.querySelector(cls);
+		const individual = q('.reminder-telegram-preview-content-individual');
+		const bulk = q('.reminder-telegram-preview-content-bulk');
+		const test = q('.reminder-telegram-preview-content-test');
+		const upcomingIndividual = q('.reminder-telegram-preview-content-upcoming-individual');
+		const upcomingBulk = q('.reminder-telegram-preview-content-upcoming-bulk');
+		if (!individual || !bulk || !test || !upcomingIndividual || !upcomingBulk) return null;
+		return {individual, bulk, test, upcomingIndividual, upcomingBulk};
 	}
 
 	/**
 	 * Updates all template previews
 	 */
 	private updateTemplatePreviews(): void {
-		if (!this.plugin.settings.livePreviewEnabled || !this.previewElements) {
+		if (!this.plugin.settings.livePreviewEnabled) {
 			return;
 		}
-		
-		const elements = this.previewElements;
-		
+		const elements = this.getPreviewElements();
+		if (!elements) return;
+
 		// Individual template preview
 		try {
 			const individualPreview = this.renderTemplatePreview(
@@ -673,7 +866,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			elements.individual.empty();
 			elements.individual.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
 		}
-		
+
 		// Bulk template preview
 		try {
 			const taskLines = [
@@ -694,7 +887,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 			elements.bulk.empty();
 			elements.bulk.createSpan({cls: 'reminder-telegram-preview-error', text: 'Error rendering preview'});
 		}
-		
+
 		// Test template preview
 		try {
 			elements.test.empty();

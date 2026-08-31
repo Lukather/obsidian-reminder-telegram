@@ -25,6 +25,11 @@ import {
   getUpcomingTasks,
   getIncompleteTasksWithDeadlines,
   getTaskNotificationKey,
+  parseRecurrence,
+  computeNextOccurrence,
+  buildNextOccurrenceLine,
+  computeCompletionReschedules,
+  applyRescheduleEdits,
   type VaultTask,
   type Deadline,
 } from './tasks';
@@ -1375,5 +1380,238 @@ describe('Task lifecycle via fixtures', () => {
     expect(upcoming[0]!.text).toContain('Prepare slides');
     expect(upcoming[0]!.completed).toBe(false);
     expect(upcoming[0]!.deadline).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Recurring tasks (issue #98) — parseRecurrence / computeNextOccurrence /
+// buildNextOccurrenceLine / computeCompletionReschedules
+// ---------------------------------------------------------------------------
+
+describe('parseRecurrence()', () => {
+  it('parses "🔁 every day"', () => {
+    expect(parseRecurrence('🔁 every day')).toEqual({ period: 'day', raw: 'every day' });
+  });
+
+  it('parses "🔁 every week on Sunday" with weekday', () => {
+    expect(parseRecurrence('🔁 every week on Sunday')).toEqual({ period: 'week', weekday: 0, raw: 'every week on Sunday' });
+  });
+
+  it('parses weekday abbreviations (case-insensitive)', () => {
+    expect(parseRecurrence('🔁 every WEEK on sat')).toEqual({ period: 'week', weekday: 6, raw: 'every WEEK on sat' });
+  });
+
+  it('parses "🔁 every month"', () => {
+    expect(parseRecurrence('🔁 every month')).toEqual({ period: 'month', raw: 'every month' });
+  });
+
+  it('parses "🔁 every year"', () => {
+    expect(parseRecurrence('🔁 every year')).toEqual({ period: 'year', raw: 'every year' });
+  });
+
+  it('ignores "on <weekday>" for non-week periods', () => {
+    expect(parseRecurrence('🔁 every month on Sunday')).toEqual({ period: 'month', raw: 'every month on Sunday' });
+  });
+
+  it('falls back to plain weekly when the weekday name is unknown', () => {
+    expect(parseRecurrence('🔁 every week on Foop')).toEqual({ period: 'week', raw: 'every week on Foop' });
+  });
+
+  it('returns null when no recurrence syntax is present', () => {
+    expect(parseRecurrence('Just a task 📅 2026-07-22')).toBeNull();
+    expect(parseRecurrence('')).toBeNull();
+  });
+});
+
+describe('parseTaskLine() — recurrence attachment (issue #98)', () => {
+  it('attaches recurrence from the full reminder-plugin syntax', () => {
+    const result = parseTaskLine('- [ ] Call Grandma (@2026-07-31 09:00 🔁 every week on Sunday)', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.recurrence).toEqual({ period: 'week', weekday: 0, raw: 'every week on Sunday' });
+    // The date itself is still parsed untouched.
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  it('attaches recurrence for 📅 date-only tasks', () => {
+    const result = parseTaskLine('- [ ] Water plants 📅 2026-07-22 🔁 every day', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.recurrence).toEqual({ period: 'day', raw: 'every day' });
+    expect(result!.isAtTime).toBe(false);
+  });
+
+  it('leaves recurrence null when recurringTasksEnabled=false', () => {
+    const result = parseTaskLine('- [ ] Call Grandma (@2026-07-31 09:00 🔁 every week on Sunday)', 'note.md', 1, { recurringTasksEnabled: false });
+    expect(result).not.toBeNull();
+    expect(result!.recurrence).toBeNull();
+  });
+});
+
+describe('computeNextOccurrence()', () => {
+  function cal(next: Deadline): { year: number; month: number; day: number } {
+    if (next.type === 'date-only') return { year: next.year, month: next.month, day: next.day };
+    return { year: next.date.getFullYear(), month: next.date.getMonth() + 1, day: next.date.getDate() };
+  }
+
+  it('day: advances one calendar day (date-only)', () => {
+    const d = parseDate('2026-07-22')!;
+    const next = computeNextOccurrence(d, { period: 'day', raw: 'every day' }, new Date('2026-07-22T12:00:00'))!;
+    expect(cal(next)).toEqual({ year: 2026, month: 7, day: 23 });
+  });
+
+  it('day: preserves the time of a datetime deadline', () => {
+    const d = parseDate('2026-07-31 09:00')!;
+    expect(d.type).toBe('datetime');
+    const next = computeNextOccurrence(d, { period: 'day', raw: 'every day' }, new Date('2026-07-31T12:00:00'))!;
+    expect(next.type).toBe('datetime');
+    const nd = next as Extract<Deadline, { type: 'datetime' }>;
+    expect(nd.date.getFullYear()).toBe(2026);
+    expect(nd.date.getMonth()).toBe(7); // August
+    expect(nd.date.getDate()).toBe(1);
+    expect(nd.date.getHours()).toBe(9);
+    expect(nd.date.getMinutes()).toBe(0);
+  });
+
+  it('steps overdue tasks forward until the occurrence is after today', () => {
+    const d = parseDate('2026-07-20')!;
+    const next = computeNextOccurrence(d, { period: 'day', raw: 'every day' }, new Date('2026-07-23T12:00:00'))!;
+    expect(deadlineToDateString(next)).toBe('2026-07-24');
+  });
+
+  it('keeps a future deadline as the base when completed early', () => {
+    const d = parseDate('2026-08-10')!;
+    const next = computeNextOccurrence(d, { period: 'day', raw: 'every day' }, new Date('2026-07-22T12:00:00'))!;
+    expect(deadlineToDateString(next)).toBe('2026-08-11');
+  });
+
+  it('week without weekday: +7 days', () => {
+    const d = parseDate('2026-07-22')!;
+    const next = computeNextOccurrence(d, { period: 'week', raw: 'every week' }, new Date('2026-07-22T12:00:00'))!;
+    expect(deadlineToDateString(next)).toBe('2026-07-29');
+  });
+
+  it('week on Sunday: next Sunday strictly after the deadline', () => {
+    // 2026-07-22 is a Wednesday → next Sunday is 2026-07-26.
+    const d = parseDate('2026-07-22')!;
+    const next = computeNextOccurrence(d, { period: 'week', weekday: 0, raw: 'every week on Sunday' }, new Date('2026-07-22T12:00:00'))!;
+    expect(deadlineToDateString(next)).toBe('2026-07-26');
+  });
+
+  it('week on Sunday: +7 when the deadline IS that weekday', () => {
+    // 2026-07-26 is a Sunday → next Sunday is 2026-08-02.
+    const d = parseDate('2026-07-26')!;
+    const next = computeNextOccurrence(d, { period: 'week', weekday: 0, raw: 'every week on Sunday' }, new Date('2026-07-26T12:00:00'))!;
+    expect(deadlineToDateString(next)).toBe('2026-08-02');
+  });
+
+  it('month: same day next month, clamped to month length', () => {
+    expect(deadlineToDateString(computeNextOccurrence(parseDate('2026-01-31')!, { period: 'month', raw: 'every month' }, new Date('2026-01-31T12:00:00')))).toBe('2026-02-28');
+    expect(deadlineToDateString(computeNextOccurrence(parseDate('2026-03-31')!, { period: 'month', raw: 'every month' }, new Date('2026-03-31T12:00:00')))).toBe('2026-04-30');
+    expect(deadlineToDateString(computeNextOccurrence(parseDate('2028-01-31')!, { period: 'month', raw: 'every month' }, new Date('2028-01-31T12:00:00')))).toBe('2028-02-29');
+  });
+
+  it('year: same month/day next year, clamping Feb 29', () => {
+    expect(deadlineToDateString(computeNextOccurrence(parseDate('2024-02-29')!, { period: 'year', raw: 'every year' }, new Date('2024-02-29T12:00:00')))).toBe('2025-02-28');
+    expect(deadlineToDateString(computeNextOccurrence(parseDate('2026-05-04')!, { period: 'year', raw: 'every year' }, new Date('2026-05-04T12:00:00')))).toBe('2027-05-04');
+  });
+});
+
+describe('buildNextOccurrenceLine() (issue #98)', () => {
+  it('rewrites the full reminder-plugin syntax, unchecking the box and preserving text', () => {
+    const task = parseTaskLine('- [x] Call Grandma (@2026-07-31 09:00 🔁 every week on Sunday)', 'note.md', 1)!;
+    const built = buildNextOccurrenceLine(task, new Date('2026-07-31T12:00:00'));
+    expect(built).not.toBeNull();
+    expect(built!.line).toBe('- [ ] Call Grandma (@2026-08-02 09:00 🔁 every week on Sunday)');
+  });
+
+  it('rewrites a 📅 date-only task and keeps the rest of the line', () => {
+    const task = parseTaskLine('- [x] Water plants 📅 2026-07-22 🔁 every day', 'note.md', 1)!;
+    const built = buildNextOccurrenceLine(task, new Date('2026-07-22T12:00:00'));
+    expect(built!.line).toBe('- [ ] Water plants 📅 2026-07-23 🔁 every day');
+  });
+
+  it('returns null for tasks without recurrence', () => {
+    const task = parseTaskLine('- [x] Water plants 📅 2026-07-22', 'note.md', 1)!;
+    expect(buildNextOccurrenceLine(task, new Date('2026-07-22T12:00:00'))).toBeNull();
+  });
+});
+
+describe('computeCompletionReschedules() (issue #98)', () => {
+  const now = new Date('2026-07-22T12:00:00');
+
+  it('emits an edit when a recurring task transitions to completed', () => {
+    const before = [parseTaskLine('- [ ] Water plants 📅 2026-07-22 🔁 every day', 'note.md', 3)!];
+    const after = [parseTaskLine('- [x] Water plants 📅 2026-07-22 🔁 every day', 'note.md', 3)!];
+    const edits = computeCompletionReschedules(before, after, now);
+    expect(edits).toHaveLength(1);
+    expect(edits[0]!.lineNumber).toBe(3);
+    expect(edits[0]!.oldLine).toBe('- [x] Water plants 📅 2026-07-22 🔁 every day');
+    expect(edits[0]!.newLine).toBe('- [ ] Water plants 📅 2026-07-23 🔁 every day');
+  });
+
+  it('emits no edits without recurrence', () => {
+    const before = [parseTaskLine('- [ ] Water plants 📅 2026-07-22', 'note.md', 1)!];
+    const after = [parseTaskLine('- [x] Water plants 📅 2026-07-22', 'note.md', 1)!];
+    expect(computeCompletionReschedules(before, after, now)).toEqual([]);
+  });
+
+  it('emits no edits when the task was already completed', () => {
+    const task = parseTaskLine('- [x] Water plants 📅 2026-07-22 🔁 every day', 'note.md', 1)!;
+    expect(computeCompletionReschedules([task], [task], now)).toEqual([]);
+  });
+
+  it('emits no edits when a task is unchecked (no completion transition)', () => {
+    const before = [parseTaskLine('- [ ] Water plants 📅 2026-07-22 🔁 every day', 'note.md', 1)!];
+    const after = [parseTaskLine('- [ ] Water plants 📅 2026-07-23 🔁 every day', 'note.md', 1)!];
+    expect(computeCompletionReschedules(before, after, now)).toEqual([]);
+  });
+
+  it('handles multiple completed recurring tasks in one file', () => {
+    const before = [
+      parseTaskLine('- [ ] A 📅 2026-07-22 🔁 every day', 'note.md', 1)!,
+      parseTaskLine('- [ ] B 📅 2026-07-22 🔁 every month', 'note.md', 2)!,
+    ];
+    const after = [
+      parseTaskLine('- [x] A 📅 2026-07-22 🔁 every day', 'note.md', 1)!,
+      parseTaskLine('- [x] B 📅 2026-07-22 🔁 every month', 'note.md', 2)!,
+    ];
+    const edits = computeCompletionReschedules(before, after, now);
+    expect(edits).toHaveLength(2);
+    expect(edits.map(e => e.newLine)).toEqual([
+      '- [ ] A 📅 2026-07-23 🔁 every day',
+      '- [ ] B 📅 2026-08-22 🔁 every month',
+    ]);
+  });
+
+  it('full flow: completed note is rewritten to the next occurrence (issue #98)', () => {
+    const content = [
+      '# Chores',
+      '',
+      '- [ ] Water plants 📅 2026-07-22 🔁 every day',
+      '- [ ] Call Grandma (@2026-07-22 09:00 🔁 every week on Sunday)',
+      '- [x] Done without recurrence 📅 2026-07-22',
+    ].join('\n');
+
+    // The user ticks the first two boxes → vault modify → fresh scan.
+    const editedContent = [
+      '# Chores',
+      '',
+      '- [x] Water plants 📅 2026-07-22 🔁 every day',
+      '- [x] Call Grandma (@2026-07-22 09:00 🔁 every week on Sunday)',
+      '- [x] Done without recurrence 📅 2026-07-22',
+    ].join('\n');
+
+    const before = parseInlineTasks(content, 'chores.md', 0);
+    const after = parseInlineTasks(editedContent, 'chores.md', 0);
+    const edits = computeCompletionReschedules(before, after, now);
+    const rewritten = applyRescheduleEdits(editedContent, edits);
+
+    expect(rewritten).toBe([
+      '# Chores',
+      '',
+      '- [ ] Water plants 📅 2026-07-23 🔁 every day',
+      '- [ ] Call Grandma (@2026-07-26 09:00 🔁 every week on Sunday)',
+      '- [x] Done without recurrence 📅 2026-07-22',
+    ].join('\n'));
   });
 });

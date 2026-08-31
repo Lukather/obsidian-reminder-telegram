@@ -123,8 +123,13 @@ describe('AtTimeScheduler', () => {
 			expect(parsed).not.toBeNull();
 			expect(parsed!.deadline!.type).toBe('datetime');
 			const scheduler = new AtTimeScheduler(() => undefined);
-			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, REFERENCE_DATE);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
+			// Reference time 1h before the deadline — derived from the parsed Date so
+			// the test is timezone-agnostic (a fixed UTC reference would place the
+			// local-time deadline in the past on non-UTC machines).
+			const now = new Date(parsed!.deadline!.date.getTime() - 60 * 60 * 1000);
+			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, now);
+			// No lead time → wake exactly at the parsed deadline.
+			expect(scheduler.getNextFire()?.getTime()).toBe(parsed!.deadline!.date.getTime());
 		});
 
 		it('arms for a task parsed from Kanban-plugin @@ syntax (issue #97)', () => {
@@ -133,8 +138,11 @@ describe('AtTimeScheduler', () => {
 			expect(parsed!.deadline!.type).toBe('datetime');
 			expect(parsed!.timeString).toBe('12:30');
 			const scheduler = new AtTimeScheduler(() => undefined);
-			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, REFERENCE_DATE);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
+			// Same relative reference time as above.
+			const now = new Date(parsed!.deadline!.date.getTime() - 60 * 60 * 1000);
+			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, now);
+			// No lead time → wake exactly at the parsed deadline.
+			expect(scheduler.getNextFire()?.getTime()).toBe(parsed!.deadline!.date.getTime());
 		});
 
 		it('does not arm for a Kanban date-only @YYYY-MM-DD (issue #97)', () => {
