@@ -127,6 +127,25 @@ describe('AtTimeScheduler', () => {
 			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
 		});
 
+		it('arms for a task parsed from Kanban-plugin @@ syntax (issue #97)', () => {
+			const parsed = parseTaskLine('- [ ] Call Grandma @2026-06-11 @@12:30', 'note.md', 1);
+			expect(parsed).not.toBeNull();
+			expect(parsed!.deadline!.type).toBe('datetime');
+			expect(parsed!.timeString).toBe('12:30');
+			const scheduler = new AtTimeScheduler(() => undefined);
+			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, REFERENCE_DATE);
+			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
+		});
+
+		it('does not arm for a Kanban date-only @YYYY-MM-DD (issue #97)', () => {
+			const parsed = parseTaskLine('- [ ] Buy milk @2026-06-11', 'note.md', 1);
+			expect(parsed).not.toBeNull();
+			expect(parsed!.deadline!.type).toBe('date-only');
+			const scheduler = new AtTimeScheduler(() => undefined);
+			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, REFERENCE_DATE);
+			expect(scheduler.getNextFire()).toBeNull();
+		});
+
 		it('skips tasks already notified at the same scheduledFire', () => {
 			const callback = vi.fn();
 			const scheduler = new AtTimeScheduler(callback);

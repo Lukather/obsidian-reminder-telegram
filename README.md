@@ -119,6 +119,17 @@ Traditional Obsidian task format within any markdown file:
 - `(@YYYY-MM-DD)` is treated as a standard date-only deadline (interval behavior).
 - Recurring suffixes (e.g. `(@2026-07-31 09:00 🔁 every week on Sunday)`) are ignored; the notification fires at the listed time.
 
+**Kanban-plugin syntax** (toggleable in Settings → At-time notifications → Kanban syntax):
+
+```markdown
+- [ ] Call Grandma @2026-07-22 @@14:30
+- [ ] Buy milk @2026-07-22
+```
+
+- `@YYYY-MM-DD @@HH:MM` fires a notification at the exact date+time (lead time and catch-up window apply as configured).
+- `@YYYY-MM-DD` is treated as a standard date-only deadline (interval behavior).
+- The two syntax families coexist: Reminder syntax is authoritative for `@YYYY-MM-DD HH:MM`, Kanban syntax for `@YYYY-MM-DD @@HH:MM` and bare `@YYYY-MM-DD` dates.
+
 ### Scan Configuration
 
 Choose what to scan:

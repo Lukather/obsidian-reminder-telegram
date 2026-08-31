@@ -505,11 +505,17 @@ describe('Reminder-plugin inline syntax (issue #96)', () => {
     expect(result!.isAtTime).toBe(true);
   });
 
-  it('does not treat bare @YYYY-MM-DD (no time) as a deadline', () => {
-    const result = parseTaskLine('- [ ] Buy milk @2026-07-22', 'note.md', 1);
-    expect(result).not.toBeNull();
-    expect(result!.deadline).toBeNull();
-    expect(result!.isAtTime).toBe(false);
+  it('treats bare @YYYY-MM-DD as date-only only via Kanban syntax (issue #97)', () => {
+    // Default options (kanbanSyntaxEnabled omitted → on) recognize the
+    // Kanban due-date form as a date-only deadline.
+    const enabled = parseTaskLine('- [ ] Buy milk @2026-07-22', 'note.md', 1);
+    expect(enabled).not.toBeNull();
+    expect(enabled!.deadline).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+    expect(enabled!.isAtTime).toBe(false);
+    // With the Kanban toggle off, the bare @ date is not a deadline.
+    const disabled = parseTaskLine('- [ ] Buy milk @2026-07-22', 'note.md', 1, { kanbanSyntaxEnabled: false });
+    expect(disabled).not.toBeNull();
+    expect(disabled!.deadline).toBeNull();
   });
 
   it('does not let the generic fallback swallow @-prefixed dates it cannot resolve', () => {
@@ -522,11 +528,12 @@ describe('Reminder-plugin inline syntax (issue #96)', () => {
   });
 
   it('honours reminderSyntaxEnabled=false: bare @ datetime is ignored', () => {
+    // Reminder off + Kanban off: the @ token is not a deadline at all.
     const result = parseTaskLine(
       '- [ ] Call Grandma @2026-07-22 12:30',
       'note.md',
       1,
-      { reminderSyntaxEnabled: false }
+      { reminderSyntaxEnabled: false, kanbanSyntaxEnabled: false }
     );
     expect(result).not.toBeNull();
     expect(result!.deadline).toBeNull();
@@ -537,7 +544,7 @@ describe('Reminder-plugin inline syntax (issue #96)', () => {
       '- [ ] Buy milk (@2026-07-22)',
       'note.md',
       1,
-      { reminderSyntaxEnabled: false }
+      { reminderSyntaxEnabled: false, kanbanSyntaxEnabled: false }
     );
     expect(result).not.toBeNull();
     expect(result!.deadline).toBeNull();
@@ -579,8 +586,126 @@ describe('Reminder-plugin inline syntax (issue #96)', () => {
   it('skips reminder syntax only when parseInlineTasks is told to', () => {
     const content = '- [ ] Call Grandma @2026-08-01 09:30';
     const enabled = parseInlineTasks(content, 'note.md', 0, { reminderSyntaxEnabled: true });
-    const disabled = parseInlineTasks(content, 'note.md', 0, { reminderSyntaxEnabled: false });
+    const disabled = parseInlineTasks(content, 'note.md', 0, { reminderSyntaxEnabled: false, kanbanSyntaxEnabled: false });
     expect(enabled).toHaveLength(1);
+    expect(disabled).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// Kanban-plugin inline syntax (issue #97)
+// ===========================================================================
+
+describe('Kanban-plugin inline syntax (issue #97)', () => {
+  // AC1: @YYYY-MM-DD @@HH:MM
+  it('parses @YYYY-MM-DD @@HH:MM as datetime', () => {
+    const result = parseTaskLine('- [ ] Call Grandma @2026-07-22 @@14:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('14:30');
+    expect(result!.isAtTime).toBe(true);
+    expect(result!.deadlineString).toBe('@2026-07-22 @@14:30');
+  });
+
+  // AC2: @YYYY-MM-DD
+  it('parses @YYYY-MM-DD as date-only', () => {
+    const result = parseTaskLine('- [ ] Buy milk @2026-07-22', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+    expect(result!.timeString).toBeNull();
+    expect(result!.isAtTime).toBe(false);
+    expect(result!.deadlineString).toBe('@2026-07-22');
+  });
+
+  it('honours kanbanSyntaxEnabled=false: both Kanban forms are ignored', () => {
+    const atTime = parseTaskLine('- [ ] Call Grandma @2026-07-22 @@14:30', 'note.md', 1, { kanbanSyntaxEnabled: false });
+    expect(atTime).not.toBeNull();
+    expect(atTime!.deadline).toBeNull();
+
+    const dateOnly = parseTaskLine('- [ ] Buy milk @2026-07-22', 'note.md', 1, { kanbanSyntaxEnabled: false });
+    expect(dateOnly).not.toBeNull();
+    expect(dateOnly!.deadline).toBeNull();
+  });
+
+  it('keeps Reminder-plugin @YYYY-MM-DD HH:MM winning when both syntaxes are enabled', () => {
+    // Reminder syntax is authoritative for the space-separated time form;
+    // Kanban must not downgrade it to date-only.
+    const result = parseTaskLine('- [ ] Call Grandma @2026-07-22 12:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  it('parses bare @ date as date-only when only Kanban syntax is enabled', () => {
+    // Reminder disabled + Kanban enabled: `@date HH:MM` is not claimable by
+    // Reminder, so Kanban owns the bare `@date` token (date-only; time ignored).
+    const result = parseTaskLine(
+      '- [ ] Call Grandma @2026-07-22 12:30',
+      'note.md',
+      1,
+      { reminderSyntaxEnabled: false, kanbanSyntaxEnabled: true }
+    );
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+    expect(result!.timeString).toBeNull();
+  });
+
+  it('ignores a bare @@HH:MM with no date', () => {
+    const result = parseTaskLine('- [ ] Call Grandma @@14:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('does not treat @date with a malformed @@ time as a deadline', () => {
+    const result = parseTaskLine('- [ ] Call Grandma @2026-07-22 @@25:99', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('does not treat @date with a non-time @@ suffix as a deadline', () => {
+    const result = parseTaskLine('- [ ] Call Grandma @2026-07-22 @@tomorrow', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('keeps the generic fallback from swallowing unresolvable @ dates', () => {
+    // Regression: @-prefixed non-ISO dates must not leak into the
+    // bare-date fallback as date-only deadlines when Kanban is on.
+    const result = parseTaskLine('- [ ] Buy milk @07/22/2026', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('parses all Kanban variants via parseInlineTasks (end-to-end)', () => {
+    const content = [
+      '- [ ] Kanban at-time @2026-08-01 @@09:30',
+      '- [ ] Kanban date-only @2026-08-02',
+      '- [ ] Reminder at-time @2026-08-03 10:15',
+      '- [ ] Obsidian date 📅 2026-08-04',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(4);
+    const kanbanAtTime = tasks.find(t => t.text.includes('Kanban at-time'))!;
+    const kanbanDateOnly = tasks.find(t => t.text.includes('Kanban date-only'))!;
+    const reminder = tasks.find(t => t.text.includes('Reminder at-time'))!;
+    const obsidian = tasks.find(t => t.text.includes('Obsidian date'))!;
+    expect(kanbanAtTime.deadline!.type).toBe('datetime');
+    expect(kanbanAtTime.timeString).toBe('09:30');
+    expect(kanbanAtTime.isAtTime).toBe(true);
+    expect(kanbanDateOnly.deadline).toEqual({ type: 'date-only', year: 2026, month: 8, day: 2 });
+    expect(kanbanDateOnly.isAtTime).toBe(false);
+    expect(reminder.deadline!.type).toBe('datetime');
+    expect(reminder.timeString).toBe('10:15');
+    expect(obsidian.deadline).toEqual({ type: 'date-only', year: 2026, month: 8, day: 4 });
+  });
+
+  it('skips Kanban syntax only when parseInlineTasks is told to', () => {
+    const content = '- [ ] Kanban at-time @2026-08-01 @@09:30\n- [ ] Kanban date-only @2026-08-02';
+    const enabled = parseInlineTasks(content, 'note.md', 0, { kanbanSyntaxEnabled: true });
+    const disabled = parseInlineTasks(content, 'note.md', 0, { kanbanSyntaxEnabled: false });
+    expect(enabled).toHaveLength(2);
     expect(disabled).toHaveLength(0);
   });
 });
@@ -945,9 +1070,35 @@ describe('scanVaultForTasks()', () => {
     expect(atTime.deadline!.type).toBe('datetime');
     expect(atTime.timeString).toBe('09:30');
 
-    const disabled = await scanVaultForTasks(app, { scanMode: 'whole-vault', targetFolder: '', reminderSyntaxEnabled: false });
+    const disabled = await scanVaultForTasks(app, { scanMode: 'whole-vault', targetFolder: '', reminderSyntaxEnabled: false, kanbanSyntaxEnabled: false });
     expect(disabled).toHaveLength(1);
     expect(disabled[0]!.text).toBe('Obsidian task 📅 2026-08-03');
+  });
+
+  it('respects kanbanSyntaxEnabled when scanning (issue #97)', async () => {
+    const content = [
+      '---',
+      '---',
+      '- [ ] Kanban at-time @2026-08-01 @@09:30',
+      '- [ ] Kanban date-only @2026-08-02',
+      '- [ ] Reminder at-time @2026-08-03 10:15',
+      '- [ ] Obsidian task 📅 2026-08-04',
+    ].join('\n');
+    const app = createMockApp([{ path: 'inbox.md', content, frontmatter: undefined }]);
+
+    const enabled = await scanVaultForTasks(app, { scanMode: 'whole-vault', targetFolder: '', kanbanSyntaxEnabled: true });
+    expect(enabled).toHaveLength(4);
+    const kanbanAtTime = enabled.find(t => t.text.includes('Kanban at-time'))!;
+    expect(kanbanAtTime.deadline!.type).toBe('datetime');
+    expect(kanbanAtTime.timeString).toBe('09:30');
+    const kanbanDateOnly = enabled.find(t => t.text.includes('Kanban date-only'))!;
+    expect(kanbanDateOnly.deadline!.type).toBe('date-only');
+
+    const disabled = await scanVaultForTasks(app, { scanMode: 'whole-vault', targetFolder: '', kanbanSyntaxEnabled: false });
+    expect(disabled).toHaveLength(2);
+    expect(disabled.map(t => t.text)).toEqual(
+      expect.arrayContaining(['Reminder at-time @2026-08-03 10:15', 'Obsidian task 📅 2026-08-04'])
+    );
   });
 
   it('filters by specific folder when scanMode is specific-folder', async () => {

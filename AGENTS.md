@@ -14,6 +14,7 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 - Prefixes: `due::`, `scheduled::`, `starts::`
 - Formats: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`
 - Reminder-plugin syntax (issue #96, gated by `reminderSyntaxEnabled`): `@YYYY-MM-DD HH:MM`, `(@YYYY-MM-DD HH:MM)` → datetime; `(@YYYY-MM-DD)` → date-only
+- Kanban-plugin syntax (issue #97, gated by `kanbanSyntaxEnabled`): `@YYYY-MM-DD @@HH:MM` → datetime; `@YYYY-MM-DD` → date-only (Reminder syntax stays authoritative for `@YYYY-MM-DD HH:MM`)
 
 ## Files
 
@@ -41,6 +42,8 @@ interface ReminderTelegramSettings {
     testMessageTemplate: string;
     useMarkdownFormatting: boolean;     // default: false
     maxTasksPerCheck: number;           // default: 10
+    reminderSyntaxEnabled: boolean;     // default: true
+    kanbanSyntaxEnabled: boolean;       // default: true
 }
 ```
 

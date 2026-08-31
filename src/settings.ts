@@ -35,6 +35,8 @@ export interface ReminderTelegramSettings {
 	strictTimeMode: boolean;
 	/** Recognize Reminder-plugin inline syntax (`@YYYY-MM-DD HH:MM`, `(@YYYY-MM-DD HH:MM)`, `(@YYYY-MM-DD)`). */
 	reminderSyntaxEnabled: boolean;
+	/** Recognize Kanban-plugin inline syntax (`@YYYY-MM-DD` date-only, `@YYYY-MM-DD @@HH:MM` datetime). */
+	kanbanSyntaxEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -58,7 +60,8 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	leadTimeMinutes: 0,
 	atTimeCatchUpWindowMinutes: 60,
 	strictTimeMode: false,
-	reminderSyntaxEnabled: true
+	reminderSyntaxEnabled: true,
+	kanbanSyntaxEnabled: true
 };
 
 // ---------------------------------------------------------------------------
@@ -112,6 +115,11 @@ export function validateStrictTimeMode(value: unknown): boolean {
 /** Coerce a value to a boolean; fall back to the default when non-boolean. */
 export function validateReminderSyntaxEnabled(value: unknown): boolean {
 	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.reminderSyntaxEnabled;
+}
+
+/** Coerce a value to a boolean; fall back to the default when non-boolean. */
+export function validateKanbanSyntaxEnabled(value: unknown): boolean {
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.kanbanSyntaxEnabled;
 }
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
@@ -215,6 +223,15 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.reminderSyntaxEnabled)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.reminderSyntaxEnabled = value;
+					this.debouncedSave();
+				}));
+		new Setting(containerEl)
+			.setName('Kanban syntax')
+			.setDesc('Recognize plugin syntax for due dates: @2026-07-22 (date), @2026-07-22 @@14:30 (date + time).')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.kanbanSyntaxEnabled)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.kanbanSyntaxEnabled = value;
 					this.debouncedSave();
 				}));
 		new Setting(containerEl)
