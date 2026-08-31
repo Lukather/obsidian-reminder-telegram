@@ -17,8 +17,17 @@ export function makeDeadlineDateOnly(
   return { type: 'date-only', year, month, day };
 }
 
+/**
+ * Build a datetime deadline from a naive ISO string (`2026-06-11T12:30:00`),
+ * interpreted as UTC.
+ *
+ * Tests assert against `toISOString()` (UTC) outputs, so the fixture must be
+ * timezone-agnostic — a naive string otherwise parses as *local* time and the
+ * suite only passes on machines where local == UTC.
+ */
 export function makeDeadlineDateTime(iso: string): Deadline {
-  return { type: 'datetime', date: new Date(iso) };
+  const normalized = /(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : `${iso}Z`;
+  return { type: 'datetime', date: new Date(normalized) };
 }
 
 export function makeInlineTask(overrides: Partial<VaultTask> = {}): VaultTask {
