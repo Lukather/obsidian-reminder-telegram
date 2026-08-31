@@ -23,7 +23,7 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 | File | Purpose |
 |------|---------|
 | `src/main.ts` | Plugin lifecycle, commands, status bar, periodic checking, at-time scheduler wiring, sidebar toggle |
-| `src/settings.ts` | Settings interface + defaults, validators, UI tab (`ReminderTelegramSettingTab`), live template preview |
+| `src/settings.ts` | Settings interface + defaults, pure validators, UI tab (`ReminderTelegramSettingTab`) with dual renderer: `getSettingDefinitions()` (Obsidian ≥ 1.13) + legacy `display()` fallback (< 1.13, minAppVersion 1.7.2), live template preview |
 | `src/checker.ts` | `checkDeadlines()`, `checkAndNotify()`, at-time dispatch (`dispatchAtTimeReminders`, `dueAtTimeTasks`), notification-state load/save/prune |
 | `src/tasks.ts` | `VaultTask`, `Deadline`, `scanVaultForTasks()`, `parseTaskLine()`, `parseFrontmatterTasksFromCache()`, filtering helpers, notification keys |
 | `src/task-index.ts` | `TaskIndex` — incremental in-memory index (full scan on load, vault-event updates afterward) |
@@ -205,7 +205,7 @@ interface TelegramTaskTemplateFields {
 
 ## Common Patterns
 
-**Add setting**: Interface → DEFAULT_SETTINGS → SettingTab.display(): `new Setting(containerEl).setName(...).addToggle(...)` → onChange updates `plugin.settings` and calls `plugin.saveSettings()`; text inputs use the tab's debounced save. Validation goes through pure validators (e.g. `validateLeadTimeMinutes`) shared by loadSettings and the UI.
+**Add setting**: Interface → DEFAULT_SETTINGS → `ReminderTelegramSettingTab.buildDefinitions()` — add a key-bound `control` item for simple controls (toggles/dropdown/text) or a `render` definition for custom rows (sidebar: password inputs, numeric coercion via pure validators, template textareas with chips/counter). `setControlValue()` persists and applies side effects; it is shared by the 1.13+ framework binding and the legacy renderer.
 
 **Add command**:
 ```typescript

@@ -285,6 +285,9 @@ describe('ReminderTelegramSettingTab — at-time section', () => {
 		// The mock PluginSettingTab constructor already wires containerEl with
 		// Obsidian-style helpers (empty/createEl/createDiv/createSpan).
 		container = tab.containerEl;
+		// Deprecated on Obsidian 1.13+ but still the renderer for < 1.13
+		// (minAppVersion 1.7.2) — the tab under test implements both paths.
+		// eslint-disable-next-line @typescript-eslint/no-deprecated
 		tab.display();
 	});
 
