@@ -56,7 +56,7 @@ interface ReminderTelegramSettings {
     livePreviewEnabled: boolean;        // default: true
     atTimeNotificationsEnabled: boolean;// default: true
     leadTimeMinutes: number;            // default: 0 (sharp); max 1440
-    atTimeCatchUpWindowMinutes: number; // default: 60; max 10080
+    atTimeCatchUpWindowMinutes: number; // default: 60; max 10080; general catch-up window (issue #99)
     strictTimeMode: boolean;            // default: false
     reminderSyntaxEnabled: boolean;     // default: true
     kanbanSyntaxEnabled: boolean;       // default: true
@@ -93,6 +93,8 @@ Single-context layout — one `CONTEXT.md` at repo root. See `.ai/domain.md`. (N
 manualCheck() / periodic interval → taskIndex.getAllTasks()
     ↓
 getDueTasks() (today + overdue) → filterDueTasksByCheckFlags()
+    ↓ catch-up window (issue #99): overdue tasks whose deadline is older than
+      atTimeCatchUpWindowMinutes are silently dropped; due-today always fire
     ↓ strictTimeMode: strip datetime (at-time) tasks — owned by the scheduler
 getUpcomingTasks() (tomorrow..daysAhead) if upcomingRemindersEnabled
     ↓
