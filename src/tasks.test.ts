@@ -455,6 +455,137 @@ describe('Inline task time parsing (issue #88)', () => {
 });
 
 // ===========================================================================
+// Reminder-plugin inline syntax (issue #96)
+// ===========================================================================
+
+describe('Reminder-plugin inline syntax (issue #96)', () => {
+  // AC1: @YYYY-MM-DD HH:MM
+  it('parses bare @YYYY-MM-DD HH:MM as datetime', () => {
+    const result = parseTaskLine('- [ ] Call Grandma @2026-07-22 12:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+    expect(result!.deadlineString).toBe('@2026-07-22 12:30');
+  });
+
+  // AC2: (@YYYY-MM-DD HH:MM)
+  it('parses parenthesized (@YYYY-MM-DD HH:MM) as datetime', () => {
+    const result = parseTaskLine('- [ ] Call Grandma (@2026-07-22 12:30)', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+    expect(result!.deadlineString).toBe('(@2026-07-22 12:30)');
+  });
+
+  // AC3: (@YYYY-MM-DD)
+  it('parses parenthesized (@YYYY-MM-DD) as date-only', () => {
+    const result = parseTaskLine('- [ ] Buy milk (@2026-07-22)', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toEqual({ type: 'date-only', year: 2026, month: 7, day: 22 });
+    expect(result!.timeString).toBeNull();
+    expect(result!.isAtTime).toBe(false);
+  });
+
+  it('parses bare @ with T-separated ISO datetime', () => {
+    const result = parseTaskLine('- [ ] Call Grandma @2026-07-22T12:30', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  it('parses the time component of recurring reminder syntax and ignores the suffix', () => {
+    const result = parseTaskLine('- [ ] Call Grandma #Task/regularly (@2026-07-31 09:00 🔁 every week on Sunday)', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('09:00');
+    expect(result!.isAtTime).toBe(true);
+  });
+
+  it('does not treat bare @YYYY-MM-DD (no time) as a deadline', () => {
+    const result = parseTaskLine('- [ ] Buy milk @2026-07-22', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+    expect(result!.isAtTime).toBe(false);
+  });
+
+  it('does not let the generic fallback swallow @-prefixed dates it cannot resolve', () => {
+    // Regression: with reminders enabled, an @-prefixed date that matches
+    // no reminder pattern (here MM/DD/YYYY instead of YYYY-MM-DD) must NOT
+    // leak into the bare-date fallback as a date-only deadline.
+    const result = parseTaskLine('- [ ] Buy milk @07/22/2026', 'note.md', 1);
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('honours reminderSyntaxEnabled=false: bare @ datetime is ignored', () => {
+    const result = parseTaskLine(
+      '- [ ] Call Grandma @2026-07-22 12:30',
+      'note.md',
+      1,
+      { reminderSyntaxEnabled: false }
+    );
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('honours reminderSyntaxEnabled=false: parenthesized date-only is ignored', () => {
+    const result = parseTaskLine(
+      '- [ ] Buy milk (@2026-07-22)',
+      'note.md',
+      1,
+      { reminderSyntaxEnabled: false }
+    );
+    expect(result).not.toBeNull();
+    expect(result!.deadline).toBeNull();
+  });
+
+  it('keeps existing obsidian syntax working when reminder syntax is disabled', () => {
+    const result = parseTaskLine(
+      '- [ ] Call Grandma 📅 2026-07-22 12:30',
+      'note.md',
+      1,
+      { reminderSyntaxEnabled: false }
+    );
+    expect(result).not.toBeNull();
+    expect(result!.deadline!.type).toBe('datetime');
+    expect(result!.timeString).toBe('12:30');
+  });
+
+  it('parses all variants via parseInlineTasks (end-to-end)', () => {
+    const content = [
+      '- [ ] Bare at-time @2026-08-01 09:30',
+      '- [ ] Paren at-time (@2026-08-01 09:30)',
+      '- [ ] Paren date-only (@2026-08-02)',
+      '- [ ] Plain date 2026-08-03',
+    ].join('\n');
+    const tasks = parseInlineTasks(content, 'note.md');
+    expect(tasks).toHaveLength(4);
+    const bare = tasks.find(t => t.text.includes('Bare at-time'))!;
+    const paren = tasks.find(t => t.text.includes('Paren at-time'))!;
+    const parenDateOnly = tasks.find(t => t.text.includes('Paren date-only'))!;
+    const plain = tasks.find(t => t.text.includes('Plain date'))!;
+    expect(bare.deadline!.type).toBe('datetime');
+    expect(bare.timeString).toBe('09:30');
+    expect(paren.deadline!.type).toBe('datetime');
+    expect(paren.timeString).toBe('09:30');
+    expect(parenDateOnly.deadline).toEqual({ type: 'date-only', year: 2026, month: 8, day: 2 });
+    expect(plain.deadline).toEqual({ type: 'date-only', year: 2026, month: 8, day: 3 });
+  });
+
+  it('skips reminder syntax only when parseInlineTasks is told to', () => {
+    const content = '- [ ] Call Grandma @2026-08-01 09:30';
+    const enabled = parseInlineTasks(content, 'note.md', 0, { reminderSyntaxEnabled: true });
+    const disabled = parseInlineTasks(content, 'note.md', 0, { reminderSyntaxEnabled: false });
+    expect(enabled).toHaveLength(1);
+    expect(disabled).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
 // Frontmatter datetime (issue #88)
 // ===========================================================================
 
@@ -796,6 +927,27 @@ describe('scanVaultForTasks()', () => {
     expect(tasks).toHaveLength(1);
     expect(tasks[0]!.text).toBe('Project');
     expect(tasks[0]!.source).toBe('frontmatter');
+  });
+
+  it('respects reminderSyntaxEnabled when scanning (issue #96)', async () => {
+    const content = [
+      '---',
+      '---',
+      '- [ ] At-time task @2026-08-01 09:30',
+      '- [ ] Paren date-only (@2026-08-02)',
+      '- [ ] Obsidian task 📅 2026-08-03',
+    ].join('\n');
+    const app = createMockApp([{ path: 'inbox.md', content, frontmatter: undefined }]);
+
+    const enabled = await scanVaultForTasks(app, { scanMode: 'whole-vault', targetFolder: '', reminderSyntaxEnabled: true });
+    expect(enabled).toHaveLength(3);
+    const atTime = enabled.find(t => t.text.includes('At-time task'))!;
+    expect(atTime.deadline!.type).toBe('datetime');
+    expect(atTime.timeString).toBe('09:30');
+
+    const disabled = await scanVaultForTasks(app, { scanMode: 'whole-vault', targetFolder: '', reminderSyntaxEnabled: false });
+    expect(disabled).toHaveLength(1);
+    expect(disabled[0]!.text).toBe('Obsidian task 📅 2026-08-03');
   });
 
   it('filters by specific folder when scanMode is specific-folder', async () => {

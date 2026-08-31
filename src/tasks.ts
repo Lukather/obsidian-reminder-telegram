@@ -41,6 +41,12 @@ export interface VaultTask {
 export interface ScanSettings {
 	scanMode: 'whole-vault' | 'specific-folder';
 	targetFolder: string;
+	/**
+	 * Recognize Reminder-plugin inline syntax (`@YYYY-MM-DD HH:MM`,
+	 * `(@YYYY-MM-DD HH:MM)`, `(@YYYY-MM-DD)`). Defaults to true when
+	 * omitted (backwards compatible with direct callers).
+	 */
+	reminderSyntaxEnabled?: boolean;
 }
 
 interface FrontmatterData {
@@ -57,7 +63,11 @@ interface FrontmatterData {
 
 // Date parsing
 
-const DATE_REGEX = /\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/;
+// Generic bare-date fallback. The `(?<!@)` guard keeps Reminder-plugin
+// `@`-prefixed dates out of this generic path: `@` dates are owned by
+// REMINDER_DATE_PATTERNS below (gated by the reminderSyntaxEnabled toggle),
+// so they must never leak in as date-only deadlines when the feature is off.
+const DATE_REGEX = /(?<!@)\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/;
 
 export function parseDate(dateString: string): Deadline | null {
 	if (!dateString) return null;
@@ -154,13 +164,31 @@ const OBSIDIAN_DATE_PATTERNS = [
 	/starts::\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)/i,
 ];
 
+// Reminder-plugin inline syntax (issue #96). Parenthesized form first so
+// `(@2026-07-22 12:30)` captures its full source span (parens included) and
+// the date-only form `(@2026-07-22)` resolves before the bare-@ pattern.
+// The bare form requires a time component — `@2026-07-22` without a time is
+// intentionally not recognized (matches the issue spec for the bare form).
+const REMINDER_DATE_PATTERNS = [
+	/\(@(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)\)/,
+	/@(\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}(?::\d{2})?)/,
+];
+
+export interface DeadlineParseOptions {
+	/**
+	 * Recognize Reminder-plugin `@` syntax. Defaults to true when omitted —
+	 * existing callers (tests, TaskIndex defaults) keep current behavior.
+	 */
+	reminderSyntaxEnabled?: boolean;
+}
+
 function timeStringFromDate(date: Date): string {
 	const hours = date.getHours().toString().padStart(2, '0');
 	const minutes = date.getMinutes().toString().padStart(2, '0');
 	return `${hours}:${minutes}`;
 }
 
-function extractDeadline(text: string): {deadline: Deadline | null; match: string | null; timeString: string | null} {
+function extractDeadline(text: string, options?: DeadlineParseOptions): {deadline: Deadline | null; match: string | null; timeString: string | null} {
 	for (const pattern of OBSIDIAN_DATE_PATTERNS) {
 		const match = text.match(pattern);
 		if (match && match[1]) {
@@ -168,6 +196,18 @@ function extractDeadline(text: string): {deadline: Deadline | null; match: strin
 			if (deadline) {
 				const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
 				return {deadline, match: match[0], timeString};
+			}
+		}
+	}
+	if (options?.reminderSyntaxEnabled !== false) {
+		for (const pattern of REMINDER_DATE_PATTERNS) {
+			const match = text.match(pattern);
+			if (match && match[1]) {
+				const deadline = parseDate(match[1]);
+				if (deadline) {
+					const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
+					return {deadline, match: match[0], timeString};
+				}
 			}
 		}
 	}
@@ -197,13 +237,14 @@ function hashTaskContent(text: string, deadlineMatch: string | null): string {
 export function parseTaskLine(
 	line: string,
 	filePath: string,
-	lineNumber: number
+	lineNumber: number,
+	options?: DeadlineParseOptions
 ): VaultTask | null {
 	if (!isTaskLine(line)) return null;
 	const completed = line.includes('[x]') || line.includes('[X]');
 	const textMatch = line.match(/^\s*-\s*\[[ xX]\]\s*(.*)/);
 	const text = textMatch && textMatch[1] ? textMatch[1].trim() : '';
-	const deadlineInfo = extractDeadline(text);
+	const deadlineInfo = extractDeadline(text, options);
 	const fileName = filePath.split('/').pop() || filePath;
 
 	// Stable ID: file + deadline + content hash. Line number deliberately excluded
@@ -369,7 +410,8 @@ function buildCodeBlockMap(lines: string[]): boolean[] {
 export function parseInlineTasks(
 	content: string,
 	filePath: string,
-	startLine: number = 0
+	startLine: number = 0,
+	options?: DeadlineParseOptions
 ): VaultTask[] {
 	const tasks: VaultTask[] = [];
 	const lines = content.split('\n');
@@ -378,7 +420,7 @@ export function parseInlineTasks(
 		if (inCodeBlock[i]) continue;
 		const line = lines[i];
 		if (!line) continue;
-		const task = parseTaskLine(line, filePath, i + 1);
+		const task = parseTaskLine(line, filePath, i + 1, options);
 		if (task?.deadline) tasks.push(task);
 	}
 	return tasks;
@@ -410,7 +452,9 @@ export async function scanVaultForTasks(
 			tasks.push(...parseFrontmatterTasksFromCache(frontmatter, content, file.path));
 
 			const endLine = fileCache?.frontmatterPosition?.end?.line ?? findFrontmatterEndLine(content);
-			tasks.push(...parseInlineTasks(content, file.path, endLine + 1));
+			tasks.push(...parseInlineTasks(content, file.path, endLine + 1, {
+				reminderSyntaxEnabled: settings.reminderSyntaxEnabled,
+			}));
 		} catch (error) {
 			console.error(
 				`Error reading file ${file.path}:`,

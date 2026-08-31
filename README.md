@@ -107,6 +107,18 @@ Traditional Obsidian task format within any markdown file:
 - `starts:: YYYY-MM-DD`
 - Plain dates: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`
 
+**Reminder-plugin syntax** (at-time notifications, toggleable in Settings → At-time notifications → Reminder syntax):
+
+```markdown
+- [ ] Call Grandma @2026-07-22 12:30
+- [ ] Call Grandma (@2026-07-22 12:30)
+- [ ] Buy milk (@2026-07-22)
+```
+
+- `@YYYY-MM-DD HH:MM` and `(@YYYY-MM-DD HH:MM)` fire a notification at the exact date+time (lead time and catch-up window apply as configured).
+- `(@YYYY-MM-DD)` is treated as a standard date-only deadline (interval behavior).
+- Recurring suffixes (e.g. `(@2026-07-31 09:00 🔁 every week on Sunday)`) are ignored; the notification fires at the listed time.
+
 ### Scan Configuration
 
 Choose what to scan:

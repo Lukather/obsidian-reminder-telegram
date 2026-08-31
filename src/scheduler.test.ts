@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { AtTimeScheduler } from './scheduler';
+import { parseTaskLine } from './tasks';
 import {
 	makeInlineTask,
 	makeDeadlineDateOnly,
@@ -115,6 +116,15 @@ describe('AtTimeScheduler', () => {
 			});
 			scheduler.arm([a, b, c], 0, 60, {}, REFERENCE_DATE);
 			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T13:00:00.000Z');
+		});
+
+		it('arms for a task parsed from Reminder-plugin @ syntax (issue #96)', () => {
+			const parsed = parseTaskLine('- [ ] Call Grandma @2026-06-11 12:30', 'note.md', 1);
+			expect(parsed).not.toBeNull();
+			expect(parsed!.deadline!.type).toBe('datetime');
+			const scheduler = new AtTimeScheduler(() => undefined);
+			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, REFERENCE_DATE);
+			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
 		});
 
 		it('skips tasks already notified at the same scheduledFire', () => {

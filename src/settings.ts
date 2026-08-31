@@ -33,6 +33,8 @@ export interface ReminderTelegramSettings {
 	atTimeCatchUpWindowMinutes: number;
 	/** If true, at-time tasks bypass periodic interval checks. */
 	strictTimeMode: boolean;
+	/** Recognize Reminder-plugin inline syntax (`@YYYY-MM-DD HH:MM`, `(@YYYY-MM-DD HH:MM)`, `(@YYYY-MM-DD)`). */
+	reminderSyntaxEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -55,7 +57,8 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	atTimeNotificationsEnabled: true,
 	leadTimeMinutes: 0,
 	atTimeCatchUpWindowMinutes: 60,
-	strictTimeMode: false
+	strictTimeMode: false,
+	reminderSyntaxEnabled: true
 };
 
 // ---------------------------------------------------------------------------
@@ -104,6 +107,11 @@ export function validateAtTimeNotificationsEnabled(value: unknown): boolean {
 /** Coerce a value to a boolean; fall back to the default when non-boolean. */
 export function validateStrictTimeMode(value: unknown): boolean {
 	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.strictTimeMode;
+}
+
+/** Coerce a value to a boolean; fall back to the default when non-boolean. */
+export function validateReminderSyntaxEnabled(value: unknown): boolean {
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.reminderSyntaxEnabled;
 }
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
@@ -198,6 +206,15 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.atTimeNotificationsEnabled)
 				.onChange(async (value): Promise<void> => {
 					this.plugin.settings.atTimeNotificationsEnabled = value;
+					this.debouncedSave();
+				}));
+		new Setting(containerEl)
+			.setName('Reminder syntax')
+			.setDesc('Recognize plugin syntax for at-time reminders: @2026-07-22 12:30, (@2026-07-22 12:30), (@2026-07-22).')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.reminderSyntaxEnabled)
+				.onChange(async (value): Promise<void> => {
+					this.plugin.settings.reminderSyntaxEnabled = value;
 					this.debouncedSave();
 				}));
 		new Setting(containerEl)

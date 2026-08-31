@@ -60,7 +60,7 @@ export class TaskIndex {
 			const endLine =
 				fileCache?.frontmatterPosition?.end?.line ??
 				this.fallbackFrontmatterEndLine(content);
-			tasks.push(...parseInlineTasks(content, file.path, endLine + 1));
+			tasks.push(...parseInlineTasks(content, file.path, endLine + 1, this.scanSettings));
 
 			this.index.set(file.path, tasks);
 		} catch (error) {
