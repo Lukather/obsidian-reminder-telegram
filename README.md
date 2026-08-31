@@ -1,79 +1,57 @@
 <img width="1432" height="736" alt="Obsidian_plugin" src="https://github.com/user-attachments/assets/62045f5e-c6b7-4d82-b9d6-3d254ae64e03" />
 
-
 # Reminder Telegram
 
-Never miss a deadline again! Get Telegram notifications automatically when your Obsidian tasks are due.
+Obsidian plugin that sends Telegram notifications when your tasks reach their deadline. Supports date-only deadlines (checked on an interval), exact-time deadlines (precise scheduler), upcoming reminders, and recurring tasks.
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Lukather/obsidian-reminder-telegram/badge)](https://scorecard.dev/viewer/?uri=github.com/{owner}/{repo})
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Lukather/obsidian-reminder-telegram/badge)](https://scorecard.dev/viewer/?uri=github.com/Lukather/obsidian-reminder-telegram)
 
-## Why This Plugin?
+## Features
 
-Do you manage tasks in Obsidian but sometimes forget to check them? This plugin bridges the gap between your note-taking and your daily workflow by sending timely Telegram reminders directly to your phone or desktop.
-
-Whether you use YAML frontmatter for structured task management or prefer inline task lists, **Reminder Telegram** ensures you stay on top of your deadlines without constantly checking Obsidian.
-
-## Key Features
-
-- **📋 YAML Frontmatter Support**: Parse tasks from markdown files with structured frontmatter
-- **✅ Inline Task Support**: Works with traditional Obsidian task format (`- [ ] Task 📅 2024-01-01`)
-- **🗂️ Flexible Scanning**: Choose to scan your entire vault or a specific folder
-- **📱 Telegram Integration**: Instant notifications via Telegram Bot API
-- **⏱️ Configurable Intervals**: Check for due tasks every 30 minutes (or your preferred interval)
-- **📦 Multi-task Digest**: Get all due tasks in a single organized message
-- **🚫 Duplicate Prevention**: Smart tracking to avoid repeated notifications
-- **🔔 Interactive Status Bar**: Click the status bar icon to manually check for due tasks
-- **⏰ Status Updates**: See when the last check was performed in the status bar
-- **🎨 Customizable Messages**: Personalize Telegram notification text with templates and variables
-- **📝 Markdown Support**: Enable Telegram Markdown formatting for rich text notifications
-- **📊 Task Sidebar**: Dedicated sidebar panel showing overdue, due today, and upcoming tasks at a glance
-- **✨ Enhanced UX**: Clickable variable chips, character counters, and live preview
+- **Frontmatter + inline tasks** — YAML `scheduled`/`due` fields, `- [ ]` lines with `📅`, `due::`, `scheduled::`, `starts::`, and plain dates
+- **Exact-time reminders** — Reminder-plugin `@` syntax and Kanban `@@` syntax fire at the precise minute, with configurable lead time
+- **At-time scheduler** — a timer wakes up at each deadline instead of waiting for the next interval check
+- **PC-off catch-up** — missed notifications (at-time, overdue, upcoming) fire when the app re-opens, within a configurable window
+- **Upcoming reminders** — heads-up for tasks due in the next N days, with its own templates
+- **Recurring tasks** — `🔁 every …` syntax auto-advances a completed task to its next occurrence and re-opens the checkbox
+- **Telegram integration** — bulk digests or individual messages, markdown formatting, 4096-char truncation
+- **Duplicate prevention** — per-task notified state persisted across sessions
+- **Task sidebar** — overdue / due-today / upcoming views with time-scope and tag filters
+- **Template editor UX** — clickable variable chips, character counters, live preview
+- **Status bar** — click to check immediately; shows the last check time
 
 ## Installation
 
 ### From Obsidian Community Plugins
 
-1. Go to **Settings → Community plugins → Browse**
+1. **Settings → Community plugins → Browse**
 2. Search for "Reminder Telegram"
-3. Install and enable the plugin
+3. Install and enable
 
-### Manual Installation
+### Manual
 
-1. Clone this repository or download the latest release
-2. Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-reminder-telegram/` folder
-3. Reload Obsidian and enable the plugin in **Settings → Community plugins**
+1. Clone the repo or download the latest release
+2. Copy `main.js`, `manifest.json`, `styles.css` into your vault's `.obsidian/plugins/obsidian-reminder-telegram/`
+3. Reload Obsidian and enable the plugin
 
-## Usage
+Requires Obsidian 1.7.2+ (`minAppVersion`).
 
-### Setting Up Telegram
+## Setup
 
-1. **Create a Telegram Bot**:
-   - Open Telegram and search for **@BotFather**
-   - Send `/newbot` command
-   - Follow instructions to name your bot and get the **Bot Token**
+1. **Create a bot**: in Telegram, message **@BotFather**, send `/newbot`, follow the prompts, copy the token.
+2. **Get your chat ID**: message **@userinfobot**, send `/start`; it replies with your numeric chat ID.
+3. **Configure the plugin**: paste the token and chat ID under **Settings → Reminder Telegram**. The settings tab walks through these steps too.
+4. Send a test notification via the **"Send test"** button to verify.
 
-2. **Get Your Chat ID**:
-   - Open Telegram and search for **@userinfobot**
-   - Send `/start` command
-   - It will reply with your **Chat ID**
+## Task syntax
 
-3. **Configure the Plugin**:
-   - Go to **Settings → Reminder Telegram**
-   - Enter your **Telegram Bot Token**
-   - Enter your **Telegram Chat ID**
-   - Enable **Notifications**
-   - Set your preferred **Check Interval** (default: 30 minutes)
+### YAML frontmatter
 
-### Task Formats Supported
-
-#### YAML Frontmatter (Recommended)
-
-Create markdown files with YAML frontmatter:
+A note with a `scheduled` or `due` field and `---` delimiters becomes a task. The task text is the note's base name, or the first heading after the frontmatter if one exists.
 
 ```markdown
 ---
 status: open
-priority: normal
 scheduled: 2024-12-25
 tags:
   - task
@@ -83,16 +61,11 @@ tags:
 Complete this task by Christmas
 ```
 
-**Supported Frontmatter Fields:**
-- `status`: `open`, `done`, `in-progress`, `completed`, `cancelled`, `archived`
-- `scheduled`: Deadline date (ISO format: `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`)
-- `due`: Alternative deadline field
-- `tags`: Array of tags (must include `task` or `#task` to be recognized)
-- `completedDate`: If set, task is considered completed
+- **`status`**: `open` / `in-progress` = incomplete; `done` / `completed` / `cancelled` / `archived` = completed (a `completedDate` field also marks it done)
+- **`scheduled` / `due`**: `YYYY-MM-DD` (date-only) or `YYYY-MM-DDTHH:MM` (exact time)
+- **`tags`**: used for sidebar tag filtering (not required for recognition)
 
-#### Inline Tasks
-
-Traditional Obsidian task format within any markdown file:
+### Inline tasks
 
 ```markdown
 - [ ] Complete project by 📅 2024-12-25
@@ -100,262 +73,156 @@ Traditional Obsidian task format within any markdown file:
 - [ ] Meeting scheduled:: 2024-12-15
 ```
 
-**Supported Date Formats:**
-- `📅 YYYY-MM-DD`
-- `due:: YYYY-MM-DD`
-- `scheduled:: YYYY-MM-DD`
-- `starts:: YYYY-MM-DD`
-- Plain dates: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`
+Accepted date formats: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`, with optional times (`YYYY-MM-DDTHH:MM` or `YYYY-MM-DD HH:MM`). Lines inside fenced code blocks are ignored; `[x]`/`[X]` tasks are skipped.
 
-**Reminder-plugin syntax** (at-time notifications, toggleable in Settings → At-time notifications → Reminder syntax):
+### Exact-time syntax
+
+**Reminder-plugin `@` syntax** (toggle: *Reminder syntax*):
 
 ```markdown
 - [ ] Call Grandma @2026-07-22 12:30
 - [ ] Call Grandma (@2026-07-22 12:30)
-- [ ] Buy milk (@2026-07-22)
+- [ ] Buy milk (@2026-07-22)        # no time → date-only
 ```
 
-- `@YYYY-MM-DD HH:MM` and `(@YYYY-MM-DD HH:MM)` fire a notification at the exact date+time (lead time and catch-up window apply as configured).
-- `(@YYYY-MM-DD)` is treated as a standard date-only deadline (interval behavior).
-- Recurring suffixes (e.g. `(@2026-07-31 09:00 🔁 every week on Sunday)`) are ignored; the notification fires at the listed time.
-
-**Kanban-plugin syntax** (toggleable in Settings → At-time notifications → Kanban syntax):
+**Kanban-plugin syntax** (toggle: *Kanban syntax*):
 
 ```markdown
-- [ ] Call Grandma @2026-07-22 @@14:30
-- [ ] Buy milk @2026-07-22
+- [ ] Call Grandma @2026-07-22 @@14:30   # date + time
+- [ ] Buy milk @2026-07-22                # no time → date-only
 ```
 
-- `@YYYY-MM-DD @@HH:MM` fires a notification at the exact date+time (lead time and catch-up window apply as configured).
-- `@YYYY-MM-DD` is treated as a standard date-only deadline (interval behavior).
-- The two syntax families coexist: Reminder syntax is authoritative for `@YYYY-MM-DD HH:MM`, Kanban syntax for `@YYYY-MM-DD @@HH:MM` and bare `@YYYY-MM-DD` dates.
+Reminder syntax owns `@YYYY-MM-DD HH:MM`; Kanban owns `@YYYY-MM-DD @@HH:MM` and bare `@YYYY-MM-DD`.
 
-### Scan Configuration
+### Recurring tasks
 
-Choose what to scan:
+Append `🔁 every …` to an inline task (works with any date syntax, including the full reminder form):
 
-1. **Whole Vault** (default): Scans all markdown files in your entire vault
-2. **Specific Folder**: Scans only files in a specified folder
-
-To use a specific folder:
-- Set **Scan Mode** to "Specific Folder"
-- Enter the folder path (e.g., `Tasks` or `Meta/TaskNotes/Tasks`)
-
-### Sidebar
-
-Open the **Reminder Telegram** sidebar via:
-- The **🔔 bell icon** in the left ribbon
-- **Command palette** → "Toggle sidebar"
-
-The sidebar shows three sections:
-1. **Overdue** — tasks past their deadline (highlighted in red)
-2. **Due Today** — tasks due today
-3. **Upcoming** — tasks due in the next N days (configurable)
-
-Each task row shows:
-- Task description
-- Source file name
-- Relative date (Today, Yesterday, Tomorrow, etc.)
-
-**Click any task** to open its source file and jump directly to the task line.
-
-**Filters:**
-- **Today** — shows only Overdue + Due Today (hides Upcoming)
-- **Week** — shows all sections with Upcoming limited to next 7 days
-- **Tag** — intersect with a selected frontmatter tag
-- **Clear** — removes all filters, showing everything
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| **Check reminders now** | Manually trigger a deadline check |
-| **Send test Telegram notification** | Verify your Telegram configuration |
-| **Toggle sidebar** | Open/close the task sidebar |
-
-### Message Template Customization
-
-Customize the content and format of your Telegram notifications with an enhanced editing experience:
-
-### Available Template Variables
-
-**Multi-task Digest Template** (for multiple tasks):
-- `{count}`: Number of due tasks
-- `{tasks}`: List of formatted tasks (each using the individual template)
-
-**Individual Message Template** (for single tasks):
-- `{taskName}`: Task name/text
-- `{fileName}`: File name containing the task
-- `{deadline}`: Task deadline date
-- `{filePath}`: Full path to the file
-- `{taskId}`: Unique task identifier
-
-### Enhanced Template Editing
-
-The plugin now includes powerful UX improvements for template customization:
-
-#### Clickable Variable Chips
-Instead of manually typing variables, click on the available variable chips to insert them at your cursor position:
-- Multi-task digest: `{count}`, `{tasks}` chips
-- Individual template: `{taskName}`, `{fileName}`, `{deadline}`, `{filePath}`, `{taskId}` chips
-
-#### Character Counter
-Telegram has a 4096 character limit for messages. The character counter shows:
-- Current character count vs limit
-- Percentage used
-- Warning when approaching 80% of the limit
-
-#### Live Preview
-Enable the "Live preview" setting to see real-time rendering of your templates with sample data:
-- Individual task preview with example content
-- Multi-task digest preview with multiple sample tasks
-- Test notification preview
-
-#### Markdown Examples
-The Markdown formatting toggle now includes examples:
-- `*bold*` for **bold** text
-- `_italic_` for *italic* text
-- `` `code` `` for `monospace` text
-- `[link](https://example.com)` for links
-
-#### Example Templates
-
-**Bulk Notification:**
-```
-📋 You have {count} pending tasks due today:
-
-{tasks}
-
-Please check your Obsidian vault!
+```markdown
+- [ ] Water plants 📅 2026-07-22 🔁 every day
+- [ ] Call Grandma (@2026-07-31 09:00 🔁 every week on Sunday)
+- [ ] Pay rent 📅 2026-08-01 🔁 every month
+- [ ] Renew license 📅 2026-07-22 🔁 every year
 ```
 
-**Individual Notification:**
-```
-🔔 REMINDER: {taskName}
-📁 File: {fileName}
-📅 Due: {deadline}
-```
+<details>
+<summary>Supported patterns</summary>
 
-**Test Notification:**
-```
-✅ Reminder Telegram plugin is working!
-This is a test from your Obsidian vault.
-```
+| Pattern | Next occurrence |
+|---|---|
+| `🔁 every day` | +1 calendar day |
+| `🔁 every week` | +7 days |
+| `🔁 every week on Sunday` (any weekday, full or 3-letter name) | next matching weekday |
+| `🔁 every month` | same day next month (e.g. Jan 31 → Feb 28 → Mar 31) |
+| `🔁 every year` | same month/day next year (Feb 29 → Feb 28) |
 
-#### Markdown Formatting
+</details>
 
-Enable **Markdown formatting** in settings to use Telegram's Markdown syntax for rich text formatting:
-- `*bold*` for **bold** text
-- `_italic_` for *italic* text
-- `` `code` `` for `monospace` text
-- `[link](https://example.com)` for links
+When you complete a recurring task (`- [x]`), the plugin rewrites the line: the checkbox re-opens and the date advances to the next occurrence — task text and metadata are preserved. Overdue recurring tasks advance until the next occurrence is in the future. Toggle: *Recurring tasks* (default on).
+
+## Notification behavior
+
+When do notifications go out:
+
+1. **Interval checks** — every *Check interval* minutes (default 30) and on manual triggers. Handles date-only tasks: due today, overdue, and upcoming.
+2. **At-time scheduler** — datetime tasks fire at `deadline − lead time` via a precise timer, re-armed on vault changes, workspace changes, and app resume.
+3. **PC-off catch-up** — on the next check after the app re-opens, missed notifications fire *if* they fall within the catch-up window; anything older is silently dropped.
+
+**Catch-up window** (*Catch-up window (minutes)*, default 60) applies to:
+
+- at-time tasks: fires whose scheduled time is within the window
+- overdue tasks: deadline within the window (datetime tasks by exact timestamp; date-only tasks from the end of their day)
+- tasks that were upcoming while the app was closed and became overdue within the window
+
+Tasks due today are never gated. A window of `0` disables the gate and past behavior applies (all overdue tasks are always notified).
+
+**Upcoming reminders** (*Upcoming reminders* + *Days ahead for upcoming*, default 1): tasks due in the next N days (tomorrow onward) get a heads-up with their own templates. Due/overdue notifications share the per-check budget (*Max tasks per check*).
+
+**Strict time mode**: when enabled, datetime tasks are handled *only* by the at-time scheduler — interval checks skip them entirely (default off, so the interval stays as a safety net).
+
+## Sidebar
+
+Open via the **🔔 ribbon icon** or the **"Toggle sidebar"** command.
+
+- **Overdue** — past deadline
+- **Due Today**
+- **Upcoming** — next N days (same *Days ahead* setting)
+
+Filters: **today** (hide upcoming), **week** (cap upcoming at 7 days), **tag** (intersect by frontmatter tag), **clear**. Relative dates are shown (Today / Yesterday / Tue / in 3 days). Clicking a task opens the file and scrolls to the task line (or heading).
+
+## Commands
+
+| Command | Action |
+|---|---|
+| Check reminders now | Run an interval check immediately |
+| Send test Telegram notification | Verify config |
+| Toggle sidebar | Open/close the task sidebar |
+
+## Message templates
+
+Variables:
+
+- **Digest templates** (multi-task): `{count}`, `{tasks}`
+- **Individual templates**: `{taskName}`, `{fileName}`, `{deadline}`, `{filePath}`, `{taskId}`
+- **Upcoming** uses its own digest + individual templates with the same variables
+
+Bulk messages send when more than one task is due; otherwise an individual message is sent. Messages are truncated at Telegram's 4096-character limit (markdown-safe cutoff when formatting is on).
+
+The template editor provides clickable variable chips, per-field character counters (warn at 80% of 4096), and a live preview panel with sample data (toggle: *Live preview*).
+
+**Markdown formatting**: enable in settings for `*bold*`, `_italic_`, `` `code` ``, `[links](https://example.com)`. Literal characters the parser rejects cause Telegram to return an error — keep unescaped `*`/`_` usage minimal.
 
 ## Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| Telegram Bot Token | string | `''` | Bot token from @BotFather |
-| Telegram Chat ID | string | `''` | Your chat ID for notifications |
-| Notifications Enabled | boolean | `true` | Enable/disable notifications |
-| Check Interval (minutes) | number | `30` | How often to check for due tasks |
-| Scan Mode | dropdown | `whole-vault` | Scan entire vault or specific folder |
-| Target Folder | string | `''` | Folder to scan (when Scan Mode is "Specific Folder") |
-| Multi-task Digest Template | string | `"You have {count} task(s) due:\n\n{tasks}"` | Template for multiple tasks |
-| Individual Message Template | string | `"Task Reminder\n\nTask: {taskName}\nFile: {fileName}\nDeadline: {deadline}"` | Template for single tasks |
-| Test Message Template | string | `"Test notification from reminder telegram plugin"` | Template for test notifications |
-| Live Preview | boolean | `true` | Show real-time preview of templates |
-| Use Markdown Formatting | boolean | `false` | Enable Telegram Markdown formatting (examples: *bold*, _italic_) |
-| Upcoming Days Ahead | number | `1` | How many days ahead to show in Upcoming sidebar section |
-
-## Notification Content
-
-### Bulk Notification (Multiple Tasks)
-```
-⏰ You have X task(s) due:
-
-• Task 1 (2024-01-01) - file1.md
-• Task 2 (2024-01-02) - file2.md
-```
-
-### Individual Notification
-```
-⏰ Task Reminder
-
-📝 Task name
-📁 File name
-📅 Deadline
-```
-
-### Test Notification
-```
-✅ Reminder Telegram plugin is working!
-
-This is a test notification from your Obsidian vault.
-```
-
-## When Notifications Are Sent
-
-1. **On startup**: If periodic checking is enabled
-2. **On interval**: Every N minutes (configurable)
-3. **Manual trigger**: Via command palette or status bar
-
-Notifications are sent for tasks that are:
-- Due today
-- Overdue (past deadline)
-
-Completed tasks (`status: done` or `[x]`) are skipped.
-
-## Future Improvements
-
-Here are some planned enhancements for future versions:
-
-- [x] **Message templates**: Customization of Telegram notification text ✅ **IMPLEMENTED**
-- [x] **Enhanced UX**: Clickable variables, character counters, and live preview ✅ **IMPLEMENTED**
-- [x] **Task sidebar**: Dedicated sidebar with urgency grouping and filters ✅ **IMPLEMENTED**
-- [ ] **Advanced filters**: Exclude specific folders or patterns from the scan
-- [ ] **Timezone aware**: Explicit time zone management for precise deadlines
-- [ ] **Recurring support**: Recognition of recurring tasks (daily, weekly)
-- [ ] **Snooze / Postpone**: Inline interaction on Telegram to postpone a task
-- [ ] **Advance notifications**: Alert N days before the deadline
+| Setting | Default | Notes |
+|---|---|---|
+| Telegram Bot Token | `''` | @BotFather |
+| Telegram Chat ID | `''` | @userinfobot |
+| Notifications Enabled | `true` | master switch (also gates at-time) |
+| Check Interval (minutes) | `30` | interval check cadence |
+| Max Tasks Per Check | `10` | due + upcoming budget per run |
+| Scan Mode | `whole-vault` | or specific folder |
+| Target Folder | `''` | when Scan Mode = specific folder |
+| At-time Notifications | `true` | master switch for the precise scheduler |
+| Reminder Syntax | `true` | recognize `@…` / `(@…)` dates |
+| Kanban Syntax | `true` | recognize `@… @@HH:MM` dates |
+| Recurring Tasks | `true` | recognize `🔁 every …` and auto-reschedule |
+| Lead Time (minutes) | `0` | fire N minutes before the deadline (max 1440) |
+| Catch-up Window (minutes) | `60` | PC-off catch-up for at-time/overdue/upcoming (max 10080) |
+| Strict Time Mode | `false` | datetime tasks fire only via the scheduler |
+| Upcoming Reminders | `true` | enable upcoming heads-up |
+| Days Ahead for Upcoming | `1` | 0 disables |
+| Upcoming Bulk Template | … | `{count}`, `{tasks}` |
+| Upcoming Individual Template | … | per-task variables |
+| Multi-task Digest Template | … | `{count}`, `{tasks}` |
+| Individual Message Template | … | per-task variables |
+| Test Message Template | … | no variables |
+| Live Preview | `true` | render template previews |
+| Use Markdown Formatting | `false` | Telegram markdown |
 
 ## Development
 
-### Prerequisites
-
-- Node.js 18+
-- npm
-
-### Install Dependencies
 ```bash
 npm install
-```
-
-### Development Mode (Watch)
-```bash
-npm run dev
-```
-
-### Production Build
-```bash
-npm run build
-```
-
-### Lint
-```bash
+npm run dev       # watch mode
+npm run build     # type-check + esbuild
 npm run lint
+npm test          # vitest (mocked obsidian + Telegram HTTP)
+npm run test:coverage
 ```
+
+## Planned
+
+Ideas that are not implemented yet:
+
+- **Advanced scan filters** — exclude specific folders or patterns from the scan
+- **Explicit timezone handling** — per-task or per-vault timezone management for exact-time deadlines (currently local time)
+- **Snooze / postpone** — inline Telegram interaction to push a task's deadline
 
 ## Contributing
 
-Pull requests are welcome! Please open an issue first for significant changes.
+Pull requests welcome — open an issue first for significant changes.
 
 ## License
 
-This plugin is licensed under the BSD-0-Clause License. See [LICENSE](LICENSE) for details.
-
-## Credits
-
-- Inspired by the Obsidian Tasks plugin
-- Built with Obsidian Plugin API
-
-
+BSD-0-Clause. See [LICENSE](LICENSE).
