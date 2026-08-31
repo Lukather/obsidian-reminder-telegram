@@ -17,6 +17,25 @@ export interface DateTimeDeadline {
 
 export type Deadline = DateOnlyDeadline | DateTimeDeadline;
 
+export type RecurrencePeriod = 'day' | 'week' | 'month' | 'year';
+
+/**
+ * Recurrence metadata parsed from `🔁 every …` syntax (issue #98).
+ * Only inline tasks can recur — frontmatter tasks have no line to reschedule.
+ */
+export interface Recurrence {
+	/** How often the task repeats. */
+	period: RecurrencePeriod;
+	/**
+	 * 0=Sunday … 6=Saturday. Only present for `week` when the user wrote
+	 * `on <weekday>` AND the weekday name resolved; undefined means "every
+	 * 7 days".
+	 */
+	weekday?: number;
+	/** The raw matched suffix (e.g. "every week on Sunday") — kept verbatim. */
+	raw: string;
+}
+
 export interface VaultTask {
 	id: string;
 	text: string;
@@ -30,6 +49,7 @@ export interface VaultTask {
 	timeString: string | null;
 	/** True iff `deadline?.type === 'datetime'`. */
 	isAtTime: boolean;
+	recurrence: Recurrence | null;
 	originalLine: string;
 	source: 'inline' | 'frontmatter';
 	/** Frontmatter tags extracted from the note (frontmatter only; inline hashtags not parsed). */
@@ -53,6 +73,11 @@ export interface ScanSettings {
 	 * (backwards compatible with direct callers).
 	 */
 	kanbanSyntaxEnabled?: boolean;
+	/**
+	 * Recognize recurring-task syntax (`🔁 every …`) and allow auto-reschedule
+	 * on completion. Defaults to true when omitted (backwards compatible).
+	 */
+	recurringTasksEnabled?: boolean;
 }
 
 interface FrontmatterData {
@@ -202,6 +227,10 @@ export interface DeadlineParseOptions {
 	 * Recognize Kanban-plugin `@`/`@@` syntax. Defaults to true when omitted.
 	 */
 	kanbanSyntaxEnabled?: boolean;
+	/**
+	 * Recognize recurring-task syntax (`🔁 every …`). Defaults to true when omitted.
+	 */
+	recurringTasksEnabled?: boolean;
 }
 
 function timeStringFromDate(date: Date): string {
@@ -283,6 +312,7 @@ export function parseTaskLine(
 	const text = textMatch && textMatch[1] ? textMatch[1].trim() : '';
 	const deadlineInfo = extractDeadline(text, options);
 	const fileName = filePath.split('/').pop() || filePath;
+	const recurrence = options?.recurringTasksEnabled === false ? null : parseRecurrence(text);
 
 	// Stable ID: file + deadline + content hash. Line number deliberately excluded
 	// so that adding lines above the task does not trigger re-notification.
@@ -301,6 +331,7 @@ export function parseTaskLine(
 		deadlineString: deadlineInfo.match,
 		timeString: deadlineInfo.timeString,
 		isAtTime: deadlineInfo.deadline?.type === 'datetime',
+		recurrence,
 		originalLine: line,
 		source: 'inline',
 		tags: [],
@@ -382,6 +413,7 @@ export function parseFrontmatterTasksFromCache(
 			deadlineString,
 			timeString: deadline?.type === 'datetime' ? timeStringFromDate(deadline.date) : null,
 			isAtTime: deadline?.type === 'datetime',
+			recurrence: null,
 			originalLine: formatFrontmatterSummary(frontmatter),
 			source: 'frontmatter',
 			tags,
@@ -492,6 +524,7 @@ export async function scanVaultForTasks(
 			tasks.push(...parseInlineTasks(content, file.path, endLine + 1, {
 				reminderSyntaxEnabled: settings.reminderSyntaxEnabled,
 				kanbanSyntaxEnabled: settings.kanbanSyntaxEnabled,
+				recurringTasksEnabled: settings.recurringTasksEnabled,
 			}));
 		} catch (error) {
 			console.error(
@@ -553,4 +586,230 @@ export function getIncompleteTasksWithDeadlines(tasks: VaultTask[]): VaultTask[]
 export function getTaskNotificationKey(task: VaultTask): string {
 	const datePart = deadlineToDateString(task.deadline) || 'unknown';
 	return `notified:${task.id}:${datePart}`;
+}
+
+// ---------------------------------------------------------------------------
+// Recurring tasks (issue #98)
+// ---------------------------------------------------------------------------
+
+/** 0=Sunday … 6=Saturday. Full names + common abbreviations.**/
+const WEEKDAY_NAMES: Record<string, number> = {
+	sunday: 0, sun: 0,
+	monday: 1, mon: 1,
+	tuesday: 2, tue: 2, tues: 2,
+	wednesday: 3, wed: 3,
+	thursday: 4, thu: 4, thur: 4, thurs: 4,
+	friday: 5, fri: 5,
+	saturday: 6, sat: 6,
+};
+
+/** `🔁 every day | week [on <weekday>] | month | year` — case-insensitive keywords. */
+const RECURRENCE_PATTERN = /🔁\s+every\s+(day|week|month|year)(?:\s+on\s+([A-Za-z]+))?/i;
+
+/**
+ * Parse `🔁 every …` recurrence syntax from a task line. Returns null when
+ * absent. An unknown weekday name falls back to plain weekly (`on <weekday>`
+ * is then just preserved verbatim in `raw`).
+ */
+export function parseRecurrence(text: string): Recurrence | null {
+	const match = text.match(RECURRENCE_PATTERN);
+	if (!match) return null;
+	const period = match[1]!.toLowerCase() as RecurrencePeriod;
+	const recurrence: Recurrence = {
+		period,
+		raw: match[0].replace(/^🔁\s+/i, ''),
+	};
+	if (period === 'week') {
+		const weekdayName = match[2]?.toLowerCase();
+		if (weekdayName) {
+			const weekday = WEEKDAY_NAMES[weekdayName];
+			if (weekday !== undefined) recurrence.weekday = weekday;
+		}
+	}
+	return recurrence;
+}
+
+function daysInMonth(year: number, month: number): number {
+	// month is 1-based; day 0 of the next month = last day of this month.
+	return new Date(year, month, 0).getDate();
+}
+
+/** Min/max-safe calendar-day arithmetic for month/year steps. */
+interface CalendarDay {
+	year: number;
+	month: number; // 1-based
+	day: number;
+}
+
+/**
+ * Compute the `k`-th occurrence of `recurrence` strictly after `base`, where
+ * k ≥ 1. Computed from the BASE day each time (not from the previous clamped
+ * result) so `every month` on the 31st stays on the 31st: Jan 31 → Feb 28 →
+ * Mar 31 rather than drifting to the 28th.
+ */
+function nthOccurrence(base: CalendarDay, recurrence: Recurrence, k: number): CalendarDay {
+	switch (recurrence.period) {
+		case 'day':
+			return addDaysToCalendarDay(base, k);
+		case 'week': {
+			if (recurrence.weekday === undefined) {
+				return addDaysToCalendarDay(base, 7 * k);
+			}
+			// First matching weekday strictly after base, then every 7 days.
+			const baseWeekday = new Date(base.year, base.month - 1, base.day).getDay();
+			let delta = recurrence.weekday - baseWeekday;
+			if (delta <= 0) delta += 7;
+			return addDaysToCalendarDay(base, delta + 7 * (k - 1));
+		}
+		case 'month': {
+			const total = base.month - 1 + k; // 0-based
+			const year = base.year + Math.floor(total / 12);
+			const month = (total % 12) + 1;
+			return {year, month, day: Math.min(base.day, daysInMonth(year, month))};
+		}
+		case 'year': {
+			const year = base.year + k;
+			return {year, month: base.month, day: Math.min(base.day, daysInMonth(year, base.month))};
+		}
+	}
+}
+
+function buildDeadlineForCalendarDay(original: Deadline, day: CalendarDay): Deadline {
+	if (original.type === 'date-only') {
+		return {type: 'date-only', year: day.year, month: day.month, day: day.day};
+	}
+	const t = original.date;
+	return {
+		type: 'datetime',
+		date: new Date(
+			day.year,
+			day.month - 1,
+			day.day,
+			t.getHours(),
+			t.getMinutes(),
+			t.getSeconds(),
+			t.getMilliseconds()
+		),
+	};
+}
+
+/**
+ * Next occurrence of a recurring deadline. Stepping is anchored to the
+ * ORIGINAL deadline and advances until the result is strictly after `now`, so
+ * an overdue recurring task reschedules into the future rather than staying
+ * stuck in the past. Returns null only if the recurrence cannot be satisfied
+ * within a sane number of steps (should not happen in practice).
+ */
+export function computeNextOccurrence(
+	deadline: Deadline,
+	recurrence: Recurrence,
+	now: Date = new Date()
+): Deadline | null {
+	const base = deadlineToCalendarDay(deadline);
+	const today: CalendarDay = {
+		year: now.getFullYear(),
+		month: now.getMonth() + 1,
+		day: now.getDate(),
+	};
+	for (let k = 1; k <= 5000; k++) {
+		const candidate = nthOccurrence(base, recurrence, k);
+		if (compareCalendarDays(candidate, today) > 0) {
+			return buildDeadlineForCalendarDay(deadline, candidate);
+		}
+	}
+	return null;
+}
+
+/**
+ * Replace the first date-like run inside a deadline token with an ISO
+ * `YYYY-MM-DD` date (the rewrite normalizes exotic formats like `MM/DD/YYYY`
+ * to ISO — the recurrence syntax itself is always canonical YYYY-MM-DD).
+ * Any time component (`09:00`, `@@12:30`) is left untouched.
+ */
+function replaceDateInToken(token: string, isoDate: string): string {
+	return token.replace(/\d{1,4}[-/]\d{1,2}[-/]\d{2,4}/, isoDate);
+}
+
+/** Flip a completed checkbox back to open. */
+function uncheckLine(line: string): string {
+	return line.replace(/\[[xX]\]/, '[ ]');
+}
+
+export interface NextOccurrenceLine {
+	/** The full rewritten task line (box unchecked, deadline advanced). */
+	line: string;
+	/** The computed next deadline. */
+	deadline: Deadline;
+}
+
+/**
+ * Build the rescheduled line for a completed recurring task: same text and
+ * metadata, checkbox flipped back to `[ ]`, deadline advanced to the next
+ * occurrence. Returns null for non-recurring tasks or when no deadline exists.
+ */
+export function buildNextOccurrenceLine(
+	task: VaultTask,
+	now: Date = new Date()
+): NextOccurrenceLine | null {
+	if (!task.deadline || !task.recurrence || !task.deadlineString) return null;
+	const next = computeNextOccurrence(task.deadline, task.recurrence, now);
+	if (!next) return null;
+	const nextToken = replaceDateInToken(task.deadlineString, deadlineToDateString(next)!);
+	const line = uncheckLine(task.originalLine.replace(task.deadlineString, nextToken));
+	return {line, deadline: next};
+}
+
+export interface RescheduleEdit {
+	/** 1-based line number of the task in the file. */
+	lineNumber: number;
+	/** The exact current line (the completed task). */
+	oldLine: string;
+	/** The replacement line (unchecked, deadline advanced). */
+	newLine: string;
+}
+
+/**
+ * Diff a file's tasks before/after a vault change and emit the lines to
+ * rewrite for tasks that just transitioned open → completed AND carry a
+ * recurrence. Pure — callers (e.g. the plugin's modify handler) apply the
+ * edits via vault.process().
+ */
+export function computeCompletionReschedules(
+	before: VaultTask[],
+	after: VaultTask[],
+	now: Date = new Date()
+): RescheduleEdit[] {
+	const afterById = new Map(after.map(t => [t.id, t]));
+	const edits: RescheduleEdit[] = [];
+	for (const oldTask of before) {
+		if (oldTask.completed || !oldTask.recurrence) continue;
+		// The stable id embeds deadline + content hash, so the same line after
+		// the checkbox flip resolves to the same id (unless text changed).
+		const newTask = afterById.get(oldTask.id);
+		if (!newTask || !newTask.completed) continue;
+		const built = buildNextOccurrenceLine(newTask, now);
+		if (!built || built.line === newTask.originalLine) continue;
+		edits.push({
+			lineNumber: newTask.lineNumber,
+			oldLine: newTask.originalLine,
+			newLine: built.line,
+		});
+	}
+	edits.sort((a, b) => a.lineNumber - b.lineNumber);
+	return edits;
+}
+
+/**
+ * Apply reschedule edits to file content. Edits whose line no longer matches
+ * (concurrent edits shifting line numbers) are skipped defensively.
+ */
+export function applyRescheduleEdits(content: string, edits: RescheduleEdit[]): string {
+	const lines = content.split('\n');
+	for (const edit of edits) {
+		const index = edit.lineNumber - 1;
+		if (index >= 0 && index < lines.length && lines[index] === edit.oldLine) {
+			lines[index] = edit.newLine;
+		}
+	}
+	return lines.join('\n');
 }

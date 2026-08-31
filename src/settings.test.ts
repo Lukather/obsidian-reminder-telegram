@@ -20,6 +20,7 @@ import {
 	validateAtTimeNotificationsEnabled,
 	validateKanbanSyntaxEnabled,
 	validateLeadTimeMinutes,
+	validateRecurringTasksEnabled,
 	validateReminderSyntaxEnabled,
 	validateStrictTimeMode,
 } from './settings';
@@ -226,7 +227,7 @@ describe('validateReminderSyntaxEnabled() (issue #96)', () => {
 	});
 });
 
-describe('validateKanbanSyntaxEnabled() (issue #97)', () => {
+	describe('validateKanbanSyntaxEnabled() (issue #97)', () => {
 	it('passes through true', () => {
 		expect(validateKanbanSyntaxEnabled(true)).toBe(true);
 	});
@@ -239,6 +240,22 @@ describe('validateKanbanSyntaxEnabled() (issue #97)', () => {
 		expect(validateKanbanSyntaxEnabled(undefined)).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
 		expect(validateKanbanSyntaxEnabled('off')).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
 		expect(validateKanbanSyntaxEnabled(0)).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
+	});
+});
+
+describe('validateRecurringTasksEnabled() (issue #98)', () => {
+	it('passes through true', () => {
+		expect(validateRecurringTasksEnabled(true)).toBe(true);
+	});
+
+	it('passes through false', () => {
+		expect(validateRecurringTasksEnabled(false)).toBe(false);
+	});
+
+	it('falls back to default for non-boolean values', () => {
+		expect(validateRecurringTasksEnabled(undefined)).toBe(DEFAULT_SETTINGS.recurringTasksEnabled);
+		expect(validateRecurringTasksEnabled('yes')).toBe(DEFAULT_SETTINGS.recurringTasksEnabled);
+		expect(validateRecurringTasksEnabled(1)).toBe(DEFAULT_SETTINGS.recurringTasksEnabled);
 	});
 });
 

@@ -38,6 +38,8 @@ export interface ReminderTelegramSettings {
 	reminderSyntaxEnabled: boolean;
 	/** Recognize Kanban-plugin inline syntax (`@YYYY-MM-DD` date-only, `@YYYY-MM-DD @@HH:MM` datetime). */
 	kanbanSyntaxEnabled: boolean;
+	/** Recognize recurring-task syntax (`🔁 every …`) and auto-reschedule on completion. */
+	recurringTasksEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
@@ -62,7 +64,8 @@ export const DEFAULT_SETTINGS: ReminderTelegramSettings = {
 	atTimeCatchUpWindowMinutes: 60,
 	strictTimeMode: false,
 	reminderSyntaxEnabled: true,
-	kanbanSyntaxEnabled: true
+	kanbanSyntaxEnabled: true,
+	recurringTasksEnabled: true
 };
 
 // ---------------------------------------------------------------------------
@@ -121,6 +124,11 @@ export function validateReminderSyntaxEnabled(value: unknown): boolean {
 /** Coerce a value to a boolean; fall back to the default when non-boolean. */
 export function validateKanbanSyntaxEnabled(value: unknown): boolean {
 	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.kanbanSyntaxEnabled;
+}
+
+/** Coerce a value to a boolean; fall back to the default when non-boolean. */
+export function validateRecurringTasksEnabled(value: unknown): boolean {
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS.recurringTasksEnabled;
 }
 
 export class ReminderTelegramSettingTab extends PluginSettingTab {
@@ -343,6 +351,17 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 									this.debouncedSave();
 								}));
 						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Recurring tasks',
+				items: [
+					{
+						name: 'Recurring tasks',
+						desc: 'When on, completing a task with 🔁 every … syntax (e.g. "🔁 every day", "🔁 every week on Sunday") reschedules it to its next occurrence and re-opens the checkbox.',
+						control: {type: 'toggle', key: 'recurringTasksEnabled'},
 					},
 				],
 			},

@@ -14,6 +14,7 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 - Obsidian syntax: `📅 YYYY-MM-DD`, `due::`, `scheduled::`, `starts::` (formats: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`)
 - Reminder-plugin syntax (issue #96, gated by `reminderSyntaxEnabled`): `@YYYY-MM-DD HH:MM` (bare, requires time) and `(@YYYY-MM-DD HH:MM)` / `(@YYYY-MM-DD)` (parenthesized) → datetime; `(@YYYY-MM-DD)` → date-only
 - Kanban-plugin syntax (issue #97, gated by `kanbanSyntaxEnabled`): `@YYYY-MM-DD @@HH:MM` → datetime; `@YYYY-MM-DD` (not followed by `@@`) → date-only
+- Recurring tasks (issue #98, gated by `recurringTasksEnabled`): `🔁 every day|week [on <weekday>]|month|year` appended to an inline task; completing the task auto-reschedules it to the next occurrence (checkbox re-opened, text/metadata preserved)
 - Lines inside fenced code blocks (``` or ~~~) are skipped
 
 **Deadlines**: date-only (`YYYY-MM-DD`) vs datetime (has a time component). Datetime tasks are "at-time" tasks owned by the `AtTimeScheduler`; date-only tasks go through periodic checks.
@@ -25,7 +26,7 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 | `src/main.ts` | Plugin lifecycle, commands, status bar, periodic checking, at-time scheduler wiring, sidebar toggle |
 | `src/settings.ts` | Settings interface + defaults, pure validators, UI tab (`ReminderTelegramSettingTab`) with dual renderer: `getSettingDefinitions()` (Obsidian ≥ 1.13) + legacy `display()` fallback (< 1.13, minAppVersion 1.7.2), live template preview |
 | `src/checker.ts` | `checkDeadlines()`, `checkAndNotify()`, at-time dispatch (`dispatchAtTimeReminders`, `dueAtTimeTasks`), notification-state load/save/prune |
-| `src/tasks.ts` | `VaultTask`, `Deadline`, `scanVaultForTasks()`, `parseTaskLine()`, `parseFrontmatterTasksFromCache()`, filtering helpers, notification keys |
+| `src/tasks.ts` | `VaultTask`, `Deadline`, `Recurrence`, `scanVaultForTasks()`, `parseTaskLine()`, `parseFrontmatterTasksFromCache()`, filtering helpers, notification keys, recurrence computation (`computeNextOccurrence`, `buildNextOccurrenceLine`, `computeCompletionReschedules`, `applyRescheduleEdits`) |
 | `src/task-index.ts` | `TaskIndex` — incremental in-memory index (full scan on load, vault-event updates afterward) |
 | `src/scheduler.ts` | `AtTimeScheduler` — `setTimeout` wake timer for the next at-time deadline (purely a timer; dispatch is the caller's `onWake` callback) |
 | `src/sidebar-filter.ts` | Pure categorization/filtering for the sidebar: `categorizeTasks()`, time-scope + tag filters, `formatRelativeDate()` |
@@ -59,6 +60,7 @@ interface ReminderTelegramSettings {
     strictTimeMode: boolean;            // default: false
     reminderSyntaxEnabled: boolean;     // default: true
     kanbanSyntaxEnabled: boolean;       // default: true
+  recurringTasksEnabled: boolean;     // default: true (issue #98)
 }
 ```
 

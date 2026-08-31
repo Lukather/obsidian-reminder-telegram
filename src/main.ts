@@ -8,10 +8,11 @@ import {
 	validateLeadTimeMinutes,
 	validateReminderSyntaxEnabled,
 	validateKanbanSyntaxEnabled,
-	validateStrictTimeMode
+	validateStrictTimeMode,
+	validateRecurringTasksEnabled
 } from "./settings";
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions, dispatchAtTimeReminders} from "./checker";
-import {ScanSettings, VaultTask} from "./tasks";
+import {ScanSettings, VaultTask, computeCompletionReschedules, applyRescheduleEdits} from "./tasks";
 import {TaskIndex} from "./task-index";
 import {sanitizeErrorMessage} from "./utils";
 import {ReminderTelegramSidebarView, SIDEBAR_VIEW_TYPE} from "./sidebar-view";
@@ -50,7 +51,12 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('modify', (file) => {
 				if (isMarkdownFile(file)) {
-					void this.taskIndex.updateFile(file).then(() => this.notifySidebarViews());
+					// Capture the pre-edit state synchronously so we can detect
+					// open → completed transitions for recurring tasks (issue #98).
+					const before = this.taskIndex.getTasksForFile(file.path);
+					void this.taskIndex.updateFile(file)
+						.then(async () => this.applyRecurringReschedules(file, before))
+						.then(() => this.notifySidebarViews());
 				}
 			})
 		);
@@ -209,6 +215,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.settings.strictTimeMode = validateStrictTimeMode(this.settings.strictTimeMode);
 		this.settings.reminderSyntaxEnabled = validateReminderSyntaxEnabled(this.settings.reminderSyntaxEnabled);
 		this.settings.kanbanSyntaxEnabled = validateKanbanSyntaxEnabled(this.settings.kanbanSyntaxEnabled);
+		this.settings.recurringTasksEnabled = validateRecurringTasksEnabled(this.settings.recurringTasksEnabled);
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
@@ -235,7 +242,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 			scanMode: this.settings.scanMode,
 			targetFolder: this.settings.targetFolder,
 			reminderSyntaxEnabled: this.settings.reminderSyntaxEnabled,
-			kanbanSyntaxEnabled: this.settings.kanbanSyntaxEnabled
+			kanbanSyntaxEnabled: this.settings.kanbanSyntaxEnabled,
+			recurringTasksEnabled: this.settings.recurringTasksEnabled
 		};
 	}
 
@@ -434,6 +442,32 @@ export default class ReminderTelegramPlugin extends Plugin {
 			// scheduler with no upcoming wake. Rearm is cheap (no
 			// notifications sent, just a setTimeout).
 			this.armAtTimeScheduler();
+		}
+	}
+
+	/* ───────── Recurring tasks (issue #98) ───────── */
+
+	/**
+	 * Auto-reschedule recurring tasks that were just completed in `file`.
+	 * `before` is the index state captured before the vault change; the
+	 * current state is read from the index after the update. Edits are applied
+	 * via vault.process() and each rewritten line is simply untouched by the
+	 * next scan (box open, date advanced) — so the modify event this write
+	 * triggers does not loop.
+	 */
+	private async applyRecurringReschedules(file: TFile, before: VaultTask[]): Promise<void> {
+		if (!this.settings.recurringTasksEnabled) return;
+		const after = this.taskIndex.getTasksForFile(file.path);
+		const edits = computeCompletionReschedules(before, after);
+		if (edits.length === 0) return;
+
+		try {
+			await this.app.vault.process(file, (content) => applyRescheduleEdits(content, edits));
+		} catch (error) {
+			console.error(
+				'Error rescheduling recurring tasks in ' + file.path + ':',
+				sanitizeErrorMessage(String(error))
+			);
 		}
 	}
 

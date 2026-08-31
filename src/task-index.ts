@@ -85,6 +85,10 @@ export class TaskIndex {
 		return result;
 	}
 
+	getTasksForFile(path: string): VaultTask[] {
+		return this.index.get(path) ?? [];
+	}
+
 	private shouldTrack(file: TFile): boolean {
 		if (file.extension !== 'md') return false;
 		if (this.scanSettings.scanMode === 'specific-folder') {
