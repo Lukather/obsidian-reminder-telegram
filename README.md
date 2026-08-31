@@ -211,6 +211,14 @@ npm test          # vitest (mocked obsidian + Telegram HTTP)
 npm run test:coverage
 ```
 
+## Planned
+
+Ideas that are not implemented yet:
+
+- **Advanced scan filters** — exclude specific folders or patterns from the scan
+- **Explicit timezone handling** — per-task or per-vault timezone management for exact-time deadlines (currently local time)
+- **Snooze / postpone** — inline Telegram interaction to push a task's deadline
+
 ## Contributing
 
 Pull requests welcome — open an issue first for significant changes.
