@@ -559,6 +559,46 @@ export function filterDueTasksByCheckFlags(
 	});
 }
 
+/**
+ * Apply the catch-up window (issue #99) to a list of due/overdue tasks.
+ *
+ * When Obsidian/PC is off, reminders can't be sent; on the next open we catch
+ * up on tasks that were missed — but only if they became due recently enough.
+ * Tasks overdue by more than `windowMinutes` are silently dropped (they never
+ * fire for that missed window). Tasks due today (or later) are always kept.
+ *
+ * Overdue age is measured from the task's own deadline: exact timestamp for
+ * datetime deadlines, end of the deadline's calendar day for date-only tasks
+ * (a date-only task becomes "overdue" when its day is over).
+ *
+ * A window of 0 or less disables the gate entirely (backwards compatible).
+ */
+export function filterOverdueByCatchUpWindow(
+	tasks: VaultTask[],
+	referenceDate: Date,
+	windowMinutes: number
+): VaultTask[] {
+	if (windowMinutes <= 0) return tasks;
+	const windowMs = windowMinutes * 60 * 1000;
+	const refMs = referenceDate.getTime();
+	const today: {year: number; month: number; day: number} = {
+		year: referenceDate.getFullYear(),
+		month: referenceDate.getMonth() + 1,
+		day: referenceDate.getDate(),
+	};
+	return tasks.filter(task => {
+		if (!task.deadline) return true;
+		const dl = deadlineToCalendarDay(task.deadline);
+		// Due today or later → never gated by the catch-up window.
+		if (compareCalendarDays(dl, today) >= 0) return true;
+		const missedAt = task.deadline.type === 'datetime'
+			? task.deadline.date.getTime()
+			// Date-only: the task becomes overdue when its day ends.
+			: new Date(dl.year, dl.month - 1, dl.day + 1).getTime();
+		return refMs - missedAt <= windowMs;
+	});
+}
+
 export function getUpcomingTasks(tasks: VaultTask[], date: Date, daysAhead: number = 7): VaultTask[] {
 	if (daysAhead <= 0) return [];
 

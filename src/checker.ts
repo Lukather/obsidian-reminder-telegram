@@ -1,5 +1,5 @@
 import {Notice} from 'obsidian';
-import {VaultTask, getDueTasks, getUpcomingTasks, getTaskNotificationKey, filterDueTasksByCheckFlags, deadlineToDateString} from './tasks';
+import {VaultTask, getDueTasks, getUpcomingTasks, getTaskNotificationKey, filterDueTasksByCheckFlags, filterOverdueByCatchUpWindow, deadlineToDateString} from './tasks';
 import {sendBulkReminders, sendTaskReminder, sendTestNotification as telegramSendTestNotification, TelegramSendResult, TelegramTaskTemplateFields} from './telegram';
 import {sanitizeErrorMessage} from './utils';
 
@@ -35,6 +35,13 @@ export interface CheckDeadlinesOptions {
 	 * scheduler isn't a single point of failure.
 	 */
 	strictTimeMode?: boolean;
+	/**
+	 * Catch-up window in minutes for overdue tasks missed while the app was
+	 * closed (issue #99). Reuses the at-time window setting. 0 disables the
+	 * gate (all overdue tasks notify, backwards compatible). Tasks whose
+	 * deadline is older than `now - window` are silently dropped.
+	 */
+	catchUpWindowMinutes?: number;
 }
 
 const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
@@ -43,7 +50,8 @@ const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
 	daysAhead: 0,
 	sendBulk: true,
 	maxTasks: 10,
-	strictTimeMode: false
+	strictTimeMode: false,
+	catchUpWindowMinutes: 0
 };
 
 interface PersistedNotificationState {
@@ -370,11 +378,21 @@ export async function checkAndNotify(
 		opts.checkOverdue
 	);
 
+	// Catch-up for the PC-off gap (issue #99): overdue tasks only notify
+	// when they became overdue within the window; older ones are dropped.
+	// Dropped tasks stay out of the notified ledger so a widened window or
+	// a late recurring reschedule can still notify them later.
+	const windowedDueTasks = filterOverdueByCatchUpWindow(
+		dueTasks,
+		today,
+		opts.catchUpWindowMinutes ?? 0
+	);
+
 	// In strict mode the at-time scheduler owns datetime tasks; strip
 	// them from the periodic check so we don't double-notify.
 	const eligibleDueTasks = opts.strictTimeMode
-		? dueTasks.filter(task => !task.deadline || task.deadline.type !== 'datetime')
-		: dueTasks;
+		? windowedDueTasks.filter(task => !task.deadline || task.deadline.type !== 'datetime')
+		: windowedDueTasks;
 
 	const tasksToNotify = eligibleDueTasks.filter(task => !isAlreadyNotified(task, state));
 

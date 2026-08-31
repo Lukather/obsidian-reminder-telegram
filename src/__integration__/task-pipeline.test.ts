@@ -198,6 +198,45 @@ describe('Task notification pipeline (E2E)', () => {
     expect(result.notifiedTasks).toBe(0);
     expect(result.sendResults).toEqual([]);
   });
+
+  it('catches up on missed overdue tasks within the window after the app was closed (issue #99)', async () => {
+    // PC was off overnight: a task became overdue 30min ago (within the
+    // catch-up window) and one became overdue 1 day ago (outside it).
+    const recent = makeInlineTask({
+      id: 'inline:recent.md:2026-06-11T11:30:00:cu1',
+      text: 'Recently overdue',
+      deadline: makeDeadlineDateTime('2026-06-11T11:30:00'),
+    });
+    const old = makeInlineTask({
+      id: 'inline:old.md:2026-06-10T12:00:00:cu2',
+      text: 'Long overdue',
+      deadline: makeDeadlineDateTime('2026-06-10T12:00:00'),
+    });
+
+    const state = loadNotificationState(null);
+    const result = await checkAndNotify(
+      [recent, old],
+      BOT_TOKEN,
+      CHAT_ID,
+      state,
+      {
+        checkToday: true,
+        checkOverdue: true,
+        sendBulk: true,
+        maxTasks: 10,
+        // Shared at-time window as the general catch-up window.
+        catchUpWindowMinutes: 60,
+      },
+    );
+
+    // Only the 30-min-old overdue task fires; the 1-day-old one is dropped.
+    expect(result.dueTasks).toBe(2);
+    expect(result.notifiedTasks).toBe(1);
+    const keys = Object.keys(result.state.notifiedTasks);
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toContain('inline:recent.md');
+    expect(requestUrl).toHaveBeenCalled();
+  });
 });
 
 // ===========================================================================

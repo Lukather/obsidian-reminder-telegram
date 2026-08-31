@@ -225,7 +225,10 @@ export default class ReminderTelegramPlugin extends Plugin {
 		return {
 			maxTasks: this.settings.maxTasksPerCheck,
 			daysAhead,
-			strictTimeMode: this.settings.strictTimeMode
+			strictTimeMode: this.settings.strictTimeMode,
+			// Shared catch-up window (issue #99): overdue + previously-upcoming
+			// tasks missed while the app was closed fire within this window.
+			catchUpWindowMinutes: this.settings.atTimeCatchUpWindowMinutes
 		};
 	}
 

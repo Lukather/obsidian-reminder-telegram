@@ -30,7 +30,7 @@ export interface ReminderTelegramSettings {
 	atTimeNotificationsEnabled: boolean;
 	/** Minutes before a deadline to fire an at-time notification (0 = sharp). */
 	leadTimeMinutes: number;
-	/** Maximum delay (minutes) accepted on next app open for at-time catch-up (0 = disable). */
+	/** Maximum delay (minutes) accepted on next app open for a missed notification (0 = disable). Applies to at-time, overdue, and missed upcoming tasks. */
 	atTimeCatchUpWindowMinutes: number;
 	/** If true, at-time tasks bypass periodic interval checks. */
 	strictTimeMode: boolean;
@@ -310,7 +310,7 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 					},
 					{
 						name: 'Catch-up window (minutes)',
-						desc: 'Max delay (minutes) accepted on the next app open for an overdue at-time notification. 0 disables catch-up. Range: 0–10080 (7 days).',
+						desc: 'Max delay (minutes) accepted on the next app open for a missed notification — at-time tasks, overdue tasks, and tasks that were upcoming while the app was closed. Older tasks are silently dropped. 0 disables catch-up. Range: 0–10080 (7 days).',
 						render: (setting) => {
 							setting.addText(text => text
 								.setPlaceholder('60')

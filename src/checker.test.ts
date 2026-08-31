@@ -546,6 +546,151 @@ describe('checkAndNotify() with strictTimeMode', () => {
 });
 
 // ===========================================================================
+// checkAndNotify with the overdue catch-up window (issue #99)
+// ===========================================================================
+
+describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(REFERENCE_DATE); // 2026-06-11T12:00:00Z
+		mockTelegramSuccess();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	/** A datetime deadline 24h before the reference time (clearly overdue). */
+	const overdue24h = makeInlineTask({
+		id: 'inline:overdue24h.md:2026-06-10T12:00:00:od1',
+		deadline: makeDeadlineDateTime('2026-06-10T12:00:00'),
+	});
+
+	it('fires an overdue task inside the catch-up window (PC was off briefly)', async () => {
+		const state = freshState();
+		// 24h overdue, window 25h → within window → fires.
+		const result = await checkAndNotify([overdue24h], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+			catchUpWindowMinutes: 1500,
+		});
+
+		expect(result.notifiedTasks).toBe(1);
+		expect(result.sendResults.length).toBe(1);
+		expect(result.sendResults[0]!.success).toBe(true);
+	});
+
+	it('silently drops an overdue task outside the catch-up window', async () => {
+		const state = freshState();
+		// 24h overdue, window 60min → outside → dropped, but still counted as due.
+		const result = await checkAndNotify([overdue24h], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+			catchUpWindowMinutes: 60,
+		});
+
+		expect(result.dueTasks).toBe(1); // still a due/overdue task overall
+		expect(result.notifiedTasks).toBe(0);
+		expect(result.sendResults).toEqual([]);
+	});
+
+	it('fires tasks due today regardless of the catch-up window', async () => {
+		const state = freshState();
+		const dueTodayTask = makeInlineTask({
+			id: 'inline:today.md:2026-06-11:cw1',
+			deadline: makeDeadlineDateOnly(2026, 6, 11),
+		});
+
+		const result = await checkAndNotify([dueTodayTask], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+			catchUpWindowMinutes: 60,
+		});
+
+		expect(result.notifiedTasks).toBe(1);
+	});
+
+	it('drops a date-only overdue task outside the window (silently)', async () => {
+		const state = freshState();
+		// Due 2026-06-01 → ≥10 days overdue at reference time, far beyond any sane window.
+		const oldOverdue = makeInlineTask({
+			id: 'inline:old.md:2026-06-01:cw2',
+			deadline: makeDeadlineDateOnly(2026, 6, 1),
+		});
+
+		const result = await checkAndNotify([oldOverdue], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+			catchUpWindowMinutes: 60,
+		});
+
+		expect(result.dueTasks).toBe(1);
+		expect(result.notifiedTasks).toBe(0);
+		expect(result.sendResults).toEqual([]);
+	});
+
+	it('keeps notifying old overdue tasks when the window is disabled (0 / default)', async () => {
+		const state = freshState();
+		const oldOverdue = makeInlineTask({
+			id: 'inline:old.md:2026-06-01:cw3',
+			deadline: makeDeadlineDateOnly(2026, 6, 1),
+		});
+
+		const result = await checkAndNotify([oldOverdue], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			sendBulk: true,
+			maxTasks: 10,
+		});
+
+		expect(result.notifiedTasks).toBe(1);
+	});
+
+	it('fires a missed upcoming task that became overdue within the window on open', async () => {
+		const state = freshState();
+		// Was upcoming while the PC was off; now overdue by 24h — inside a 25h window.
+		const result = await checkAndNotify([overdue24h], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: true,
+			maxTasks: 10,
+			catchUpWindowMinutes: 1500,
+		});
+
+		expect(result.notifiedTasks).toBe(1);
+	});
+
+	it('still fires genuinely-upcoming tasks after the app was closed (window only gates overdue)', async () => {
+		const state = freshState();
+		const upcomingTask = makeInlineTask({
+			id: 'inline:upcoming.md:2026-06-13:cw4',
+			deadline: makeDeadlineDateOnly(2026, 6, 13),
+		});
+
+		const result = await checkAndNotify([upcomingTask], BOT_TOKEN, CHAT_ID, state, {
+			checkToday: true,
+			checkOverdue: true,
+			daysAhead: 7,
+			sendBulk: true,
+			maxTasks: 10,
+			catchUpWindowMinutes: 60,
+		});
+
+		expect(result.notifiedTasks).toBe(1);
+	});
+});
+
+// ===========================================================================
 // At-time scheduler helpers (issue #89)
 // ===========================================================================
 
