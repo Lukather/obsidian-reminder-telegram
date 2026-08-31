@@ -19,6 +19,7 @@ import {
 	validateAtTimeCatchUpWindowMinutes,
 	validateAtTimeNotificationsEnabled,
 	validateLeadTimeMinutes,
+	validateReminderSyntaxEnabled,
 	validateStrictTimeMode,
 } from './settings';
 import { _getSettingSnapshots, _resetSettingInstances } from '../__mocks__/obsidian';
@@ -44,6 +45,10 @@ describe('DEFAULT_SETTINGS — at-time keys (issue #89)', () => {
 		expect(DEFAULT_SETTINGS.strictTimeMode).toBe(false);
 	});
 
+	it('exposes reminderSyntaxEnabled = true (issue #96)', () => {
+		expect(DEFAULT_SETTINGS.reminderSyntaxEnabled).toBe(true);
+	});
+
 	it('keeps the new keys typed as required (not optional)', () => {
 		// Compile-time guard: every key is non-optional on the interface.
 		const probe: ReminderTelegramSettings = DEFAULT_SETTINGS;
@@ -51,6 +56,7 @@ describe('DEFAULT_SETTINGS — at-time keys (issue #89)', () => {
 		expect(probe.leadTimeMinutes).toBeDefined();
 		expect(probe.atTimeCatchUpWindowMinutes).toBeDefined();
 		expect(probe.strictTimeMode).toBeDefined();
+		expect(probe.reminderSyntaxEnabled).toBeDefined();
 	});
 });
 
@@ -198,6 +204,22 @@ describe('validateStrictTimeMode()', () => {
 	});
 });
 
+describe('validateReminderSyntaxEnabled() (issue #96)', () => {
+	it('passes through true', () => {
+		expect(validateReminderSyntaxEnabled(true)).toBe(true);
+	});
+
+	it('passes through false', () => {
+		expect(validateReminderSyntaxEnabled(false)).toBe(false);
+	});
+
+	it('falls back to default for non-boolean values', () => {
+		expect(validateReminderSyntaxEnabled(undefined)).toBe(DEFAULT_SETTINGS.reminderSyntaxEnabled);
+		expect(validateReminderSyntaxEnabled('off')).toBe(DEFAULT_SETTINGS.reminderSyntaxEnabled);
+		expect(validateReminderSyntaxEnabled(0)).toBe(DEFAULT_SETTINGS.reminderSyntaxEnabled);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // SettingTab rendering — Acceptance criteria #2 and #8
 // ---------------------------------------------------------------------------
@@ -258,6 +280,12 @@ describe('ReminderTelegramSettingTab — at-time section', () => {
 		// Setting rows include the name; presence of the name + a toggle is enough.
 		const text = container.textContent ?? '';
 		expect(text).toContain('At-time notifications enabled');
+	});
+
+	it('renders the reminderSyntaxEnabled toggle (issue #96)', () => {
+		const text = container.textContent ?? '';
+		expect(text).toContain('Reminder syntax');
+		expect(text).toContain('@2026-07-22 12:30');
 	});
 
 	it('renders the leadTimeMinutes text input', () => {
@@ -322,5 +350,6 @@ describe('save+load round-trip for at-time settings (AC #3)', () => {
 		expect(merged.leadTimeMinutes).toBe(0);
 		expect(merged.atTimeCatchUpWindowMinutes).toBe(60);
 		expect(merged.strictTimeMode).toBe(false);
+		expect(merged.reminderSyntaxEnabled).toBe(true);
 	});
 });

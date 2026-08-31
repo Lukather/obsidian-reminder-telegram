@@ -6,6 +6,7 @@ import {
 	validateAtTimeCatchUpWindowMinutes,
 	validateAtTimeNotificationsEnabled,
 	validateLeadTimeMinutes,
+	validateReminderSyntaxEnabled,
 	validateStrictTimeMode
 } from "./settings";
 import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions, dispatchAtTimeReminders} from "./checker";
@@ -205,6 +206,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.settings.leadTimeMinutes = validateLeadTimeMinutes(this.settings.leadTimeMinutes);
 		this.settings.atTimeCatchUpWindowMinutes = validateAtTimeCatchUpWindowMinutes(this.settings.atTimeCatchUpWindowMinutes);
 		this.settings.strictTimeMode = validateStrictTimeMode(this.settings.strictTimeMode);
+		this.settings.reminderSyntaxEnabled = validateReminderSyntaxEnabled(this.settings.reminderSyntaxEnabled);
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
@@ -229,7 +231,8 @@ export default class ReminderTelegramPlugin extends Plugin {
 	private getScanSettings(): ScanSettings {
 		return {
 			scanMode: this.settings.scanMode,
-			targetFolder: this.settings.targetFolder
+			targetFolder: this.settings.targetFolder,
+			reminderSyntaxEnabled: this.settings.reminderSyntaxEnabled
 		};
 	}
 
