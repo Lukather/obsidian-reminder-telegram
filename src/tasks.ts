@@ -47,6 +47,12 @@ export interface ScanSettings {
 	 * omitted (backwards compatible with direct callers).
 	 */
 	reminderSyntaxEnabled?: boolean;
+	/**
+	 * Recognize Kanban-plugin inline syntax (`@YYYY-MM-DD` date-only,
+	 * `@YYYY-MM-DD @@HH:MM` datetime). Defaults to true when omitted
+	 * (backwards compatible with direct callers).
+	 */
+	kanbanSyntaxEnabled?: boolean;
 }
 
 interface FrontmatterData {
@@ -167,11 +173,23 @@ const OBSIDIAN_DATE_PATTERNS = [
 // Reminder-plugin inline syntax (issue #96). Parenthesized form first so
 // `(@2026-07-22 12:30)` captures its full source span (parens included) and
 // the date-only form `(@2026-07-22)` resolves before the bare-@ pattern.
-// The bare form requires a time component — `@2026-07-22` without a time is
-// intentionally not recognized (matches the issue spec for the bare form).
+// The Reminder-plugin bare form requires a time component — `@2026-07-22`
+// without a time is not recognized by THIS pattern set (the Kanban
+// patterns below own the bare date-only form, gated by kanbanSyntaxEnabled).
 const REMINDER_DATE_PATTERNS = [
 	/\(@(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)\)/,
 	/@(\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}(?::\d{2})?)/,
+];
+
+// Kanban-plugin inline syntax (issue #97). `@YYYY-MM-DD` is the due-date
+// form (date-only deadline, standard task interval behavior); appending a
+// `@@HH:MM` time makes it a datetime deadline owned by the at-time
+// scheduler. Order matters: the date+time form MUST be matched before the
+// bare date form, and the bare form refuses dates followed by a `@@` token
+// so a malformed time (e.g. `@@tomorrow`) can't degrade into date-only.
+const KANBAN_DATE_PATTERNS = [
+	/@(\d{4}-\d{2}-\d{2}) @@(\d{1,2}:\d{2})/,
+	/@(\d{4}-\d{2}-\d{2})(?!\s*@@)/,
 ];
 
 export interface DeadlineParseOptions {
@@ -180,6 +198,10 @@ export interface DeadlineParseOptions {
 	 * existing callers (tests, TaskIndex defaults) keep current behavior.
 	 */
 	reminderSyntaxEnabled?: boolean;
+	/**
+	 * Recognize Kanban-plugin `@`/`@@` syntax. Defaults to true when omitted.
+	 */
+	kanbanSyntaxEnabled?: boolean;
 }
 
 function timeStringFromDate(date: Date): string {
@@ -204,6 +226,21 @@ function extractDeadline(text: string, options?: DeadlineParseOptions): {deadlin
 			const match = text.match(pattern);
 			if (match && match[1]) {
 				const deadline = parseDate(match[1]);
+				if (deadline) {
+					const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
+					return {deadline, match: match[0], timeString};
+				}
+			}
+		}
+	}
+	if (options?.kanbanSyntaxEnabled !== false) {
+		for (const pattern of KANBAN_DATE_PATTERNS) {
+			const match = text.match(pattern);
+			// The date+time form carries the time in capture group 2;
+			// `parseDate` then normalizes "YYYY-MM-DD HH:MM" → datetime.
+			if (match && match[1]) {
+				const raw = match[2] ? `${match[1]} ${match[2]}` : match[1];
+				const deadline = parseDate(raw);
 				if (deadline) {
 					const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
 					return {deadline, match: match[0], timeString};
@@ -454,6 +491,7 @@ export async function scanVaultForTasks(
 			const endLine = fileCache?.frontmatterPosition?.end?.line ?? findFrontmatterEndLine(content);
 			tasks.push(...parseInlineTasks(content, file.path, endLine + 1, {
 				reminderSyntaxEnabled: settings.reminderSyntaxEnabled,
+				kanbanSyntaxEnabled: settings.kanbanSyntaxEnabled,
 			}));
 		} catch (error) {
 			console.error(

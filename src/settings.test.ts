@@ -18,6 +18,7 @@ import {
 	ReminderTelegramSettingTab,
 	validateAtTimeCatchUpWindowMinutes,
 	validateAtTimeNotificationsEnabled,
+	validateKanbanSyntaxEnabled,
 	validateLeadTimeMinutes,
 	validateReminderSyntaxEnabled,
 	validateStrictTimeMode,
@@ -49,6 +50,10 @@ describe('DEFAULT_SETTINGS — at-time keys (issue #89)', () => {
 		expect(DEFAULT_SETTINGS.reminderSyntaxEnabled).toBe(true);
 	});
 
+	it('exposes kanbanSyntaxEnabled = true (issue #97)', () => {
+		expect(DEFAULT_SETTINGS.kanbanSyntaxEnabled).toBe(true);
+	});
+
 	it('keeps the new keys typed as required (not optional)', () => {
 		// Compile-time guard: every key is non-optional on the interface.
 		const probe: ReminderTelegramSettings = DEFAULT_SETTINGS;
@@ -57,6 +62,7 @@ describe('DEFAULT_SETTINGS — at-time keys (issue #89)', () => {
 		expect(probe.atTimeCatchUpWindowMinutes).toBeDefined();
 		expect(probe.strictTimeMode).toBeDefined();
 		expect(probe.reminderSyntaxEnabled).toBeDefined();
+		expect(probe.kanbanSyntaxEnabled).toBeDefined();
 	});
 });
 
@@ -220,6 +226,22 @@ describe('validateReminderSyntaxEnabled() (issue #96)', () => {
 	});
 });
 
+describe('validateKanbanSyntaxEnabled() (issue #97)', () => {
+	it('passes through true', () => {
+		expect(validateKanbanSyntaxEnabled(true)).toBe(true);
+	});
+
+	it('passes through false', () => {
+		expect(validateKanbanSyntaxEnabled(false)).toBe(false);
+	});
+
+	it('falls back to default for non-boolean values', () => {
+		expect(validateKanbanSyntaxEnabled(undefined)).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
+		expect(validateKanbanSyntaxEnabled('off')).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
+		expect(validateKanbanSyntaxEnabled(0)).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // SettingTab rendering — Acceptance criteria #2 and #8
 // ---------------------------------------------------------------------------
@@ -288,6 +310,12 @@ describe('ReminderTelegramSettingTab — at-time section', () => {
 		expect(text).toContain('@2026-07-22 12:30');
 	});
 
+	it('renders the kanbanSyntaxEnabled toggle (issue #97)', () => {
+		const text = container.textContent ?? '';
+		expect(text).toContain('Kanban syntax');
+		expect(text).toContain('@2026-07-22 @@14:30');
+	});
+
 	it('renders the leadTimeMinutes text input', () => {
 		const text = container.textContent ?? '';
 		expect(text).toContain('Lead time (minutes)');
@@ -351,5 +379,6 @@ describe('save+load round-trip for at-time settings (AC #3)', () => {
 		expect(merged.atTimeCatchUpWindowMinutes).toBe(60);
 		expect(merged.strictTimeMode).toBe(false);
 		expect(merged.reminderSyntaxEnabled).toBe(true);
+		expect(merged.kanbanSyntaxEnabled).toBe(true);
 	});
 });
