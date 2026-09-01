@@ -110,27 +110,34 @@ export function pruneNotificationState(state: NotificationState): void {
 	const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
 	// --- notifiedTasks (date-only / catch-all keys) ---
-	const notifiedEntries: Array<[string, number]> = Object.entries(state.notifiedTasks);
-	const recentNotified = notifiedEntries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
-
-	if (recentNotified.length <= 1000) {
-		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
-		state.notifiedTasks = Object.fromEntries(recentNotified) as Record<string, number>;
-	} else {
-		// Cap at 1000 most recent entries
-		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
-		state.notifiedTasks = Object.fromEntries(
-			recentNotified.sort((a, b) => b[1] - a[1]).slice(0, 1000)
-		) as Record<string, number>;
+	const recentEntries: Array<[string, number]> = [];
+	for (const key of Object.keys(state.notifiedTasks)) {
+		const timestamp: number | undefined = state.notifiedTasks[key];
+		if (timestamp !== undefined && timestamp >= thirtyDaysAgo) {
+			recentEntries.push([key, timestamp]);
+		}
 	}
+	if (recentEntries.length > 1000) {
+		recentEntries.sort((a, b) => b[1] - a[1]);
+		recentEntries.length = 1000;
+	}
+	const prunedTasks: Record<string, number> = {};
+	for (const [key, timestamp] of recentEntries) {
+		prunedTasks[key] = timestamp;
+	}
+	state.notifiedTasks = prunedTasks;
 
 	// --- notifiedAtTimeInstances (one entry per at-time fire) ---
 	// Same 30-day window. This map is small (one entry per fired instance) so
 	// the 1000-cap doesn't apply — age-pruning alone is enough.
-	const atTimeEntries: Array<[string, number]> = Object.entries(state.notifiedAtTimeInstances);
-	const recentAtTime = atTimeEntries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
-	state.notifiedAtTimeInstances = Object.fromEntries(recentAtTime) as Record<string, number>;
+	const prunedAtTime: Record<string, number> = {};
+	for (const key of Object.keys(state.notifiedAtTimeInstances)) {
+		const timestamp: number | undefined = state.notifiedAtTimeInstances[key];
+		if (timestamp !== undefined && timestamp >= thirtyDaysAgo) {
+			prunedAtTime[key] = timestamp;
+		}
+	}
+	state.notifiedAtTimeInstances = prunedAtTime;
 }
 
 /**

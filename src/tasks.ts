@@ -153,9 +153,9 @@ export function deadlineToCalendarDay(deadline: Deadline): {year: number; month:
 export function deadlineToDateString(deadline: Deadline | null): string | null {
 	if (!deadline) return null;
 	const cd = deadlineToCalendarDay(deadline);
-	const month = String(cd.month).padStart(2, '0');
-	const day = String(cd.day).padStart(2, '0');
-	return `${cd.year}-${month}-${day}`;
+	const monthStr = String(cd.month);
+	const dayStr = String(cd.day);
+	return `${cd.year}-${monthStr.length < 2 ? '0' : ''}${monthStr}-${dayStr.length < 2 ? '0' : ''}${dayStr}`;
 }
 
 export function compareCalendarDays(a: {year: number; month: number; day: number}, b: {year: number; month: number; day: number}): number {
@@ -234,9 +234,9 @@ export interface DeadlineParseOptions {
 }
 
 function timeStringFromDate(date: Date): string {
-	const hours = String(date.getHours()).padStart(2, '0');
-	const minutes = String(date.getMinutes()).padStart(2, '0');
-	return `${hours}:${minutes}`;
+	const h = String(date.getHours());
+	const m = String(date.getMinutes());
+	return `${h.length < 2 ? '0' : ''}${h}:${m.length < 2 ? '0' : ''}${m}`;
 }
 
 function extractDeadline(text: string, options?: DeadlineParseOptions): {deadline: Deadline | null; match: string | null; timeString: string | null} {
@@ -351,13 +351,19 @@ function findFrontmatterEndLine(content: string): number {
 
 function formatFrontmatterSummary(frontmatter: FrontmatterData): string {
 	const obj: Record<string, unknown> = frontmatter;
-	const entries: string[] = Object.entries(obj).map(([k, v]: [string, unknown]) => {
+	const entries: string[] = [];
+	for (const k of Object.keys(obj)) {
+		const v: unknown = obj[k];
 		if (Array.isArray(v)) {
-			const items = v.map((item: unknown) => `    - ${String(item)}`);
-			return `  ${k}:\n${items.join('\n')}`;
+			const items: string[] = [];
+			for (const item of v) {
+				items.push(`    - ${String(item)}`);
+			}
+			entries.push(`  ${k}:\n${items.join('\n')}`);
+		} else {
+			entries.push(`  ${k}: ${String(v)}`);
 		}
-		return `  ${k}: ${String(v)}`;
-	});
+	}
 	return `---\n${entries.join('\n')}\n---`;
 }
 
@@ -448,7 +454,7 @@ function buildCodeBlockMap(lines: string[]): boolean[] {
 		const line: string = lines[i] ?? '';
 		if (depth > 0) inCodeBlock[i] = true;
 
-		const trimmed: string = line.trimStart();
+		const trimmed: string = line.replace(/^[ \t]+/, '');
 		if (trimmed.length < 3) continue;
 		const firstChar: string = trimmed[0] ?? '';
 		if (firstChar !== '`' && firstChar !== '~') continue;
