@@ -620,10 +620,13 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				break;
 			case 'dropdown':
 				setting.addDropdown(dropdown => {
-					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
-					const options = (control as import('obsidian').SettingDropdownControl).options;
-					for (const [value, label] of Object.entries(options)) {
-						dropdown.addOption(value, label);
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- CI uses different TS resolution
+					const options: Record<string, string> = control.options as Record<string, string>;
+					for (const value of Object.keys(options)) {
+						const label: string | undefined = options[value];
+						if (label !== undefined) {
+							dropdown.addOption(value, label);
+						}
 					}
 					dropdown.setValue(String(this.getControlValue(key)));
 					dropdown.onChange(async (value): Promise<void> => {
