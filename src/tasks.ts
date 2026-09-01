@@ -153,8 +153,8 @@ export function deadlineToCalendarDay(deadline: Deadline): {year: number; month:
 export function deadlineToDateString(deadline: Deadline | null): string | null {
 	if (!deadline) return null;
 	const cd = deadlineToCalendarDay(deadline);
-	const month = cd.month.toString().padStart(2, '0');
-	const day = cd.day.toString().padStart(2, '0');
+	const month = String(cd.month).padStart(2, '0');
+	const day = String(cd.day).padStart(2, '0');
 	return `${cd.year}-${month}-${day}`;
 }
 
@@ -234,8 +234,8 @@ export interface DeadlineParseOptions {
 }
 
 function timeStringFromDate(date: Date): string {
-	const hours = date.getHours().toString().padStart(2, '0');
-	const minutes = date.getMinutes().toString().padStart(2, '0');
+	const hours = String(date.getHours()).padStart(2, '0');
+	const minutes = String(date.getMinutes()).padStart(2, '0');
 	return `${hours}:${minutes}`;
 }
 
@@ -351,9 +351,9 @@ function findFrontmatterEndLine(content: string): number {
 
 function formatFrontmatterSummary(frontmatter: FrontmatterData): string {
 	const obj: Record<string, unknown> = frontmatter;
-	const entries: string[] = Object.entries(obj).map(([k, v]) => {
+	const entries: string[] = Object.entries(obj).map(([k, v]: [string, unknown]) => {
 		if (Array.isArray(v)) {
-			const items = v.map(item => `    - ${String(item)}`);
+			const items = v.map((item: unknown) => `    - ${String(item)}`);
 			return `  ${k}:\n${items.join('\n')}`;
 		}
 		return `  ${k}: ${String(v)}`;

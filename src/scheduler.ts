@@ -30,7 +30,7 @@ import type {VaultTask} from './tasks';
 export type AtTimeSchedulerCallback = () => Promise<void> | void;
 
 export class AtTimeScheduler {
-	private wakeTimer: ReturnType<typeof setTimeout> | null = null;
+	private wakeTimer: number | null = null;
 	private nextFire: Date | null = null;
 	private readonly onWake: AtTimeSchedulerCallback;
 
@@ -84,7 +84,7 @@ export class AtTimeScheduler {
 			: earliest.scheduledFire - now.getTime();
 
 		this.nextFire = new Date(earliest.scheduledFire);
-		this.wakeTimer = setTimeout(() => {
+		this.wakeTimer = window.setTimeout(() => {
 			this.wakeTimer = null;
 			this.nextFire = null;
 			void this.fire();
@@ -109,7 +109,7 @@ export class AtTimeScheduler {
 	/** Cancel any pending wake timer. Safe to call when no timer is set. */
 	cancel(): void {
 		if (this.wakeTimer !== null) {
-			clearTimeout(this.wakeTimer);
+			window.clearTimeout(this.wakeTimer);
 			this.wakeTimer = null;
 		}
 		this.nextFire = null;

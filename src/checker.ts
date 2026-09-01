@@ -114,12 +114,14 @@ export function pruneNotificationState(state: NotificationState): void {
 	const recentNotified = notifiedEntries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
 
 	if (recentNotified.length <= 1000) {
-		state.notifiedTasks = Object.fromEntries(recentNotified);
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
+		state.notifiedTasks = Object.fromEntries(recentNotified) as Record<string, number>;
 	} else {
 		// Cap at 1000 most recent entries
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
 		state.notifiedTasks = Object.fromEntries(
 			recentNotified.sort((a, b) => b[1] - a[1]).slice(0, 1000)
-		);
+		) as Record<string, number>;
 	}
 
 	// --- notifiedAtTimeInstances (one entry per at-time fire) ---
@@ -127,7 +129,8 @@ export function pruneNotificationState(state: NotificationState): void {
 	// the 1000-cap doesn't apply — age-pruning alone is enough.
 	const atTimeEntries: Array<[string, number]> = Object.entries(state.notifiedAtTimeInstances);
 	const recentAtTime = atTimeEntries.filter(([, timestamp]) => timestamp >= thirtyDaysAgo);
-	state.notifiedAtTimeInstances = Object.fromEntries(recentAtTime);
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
+	state.notifiedAtTimeInstances = Object.fromEntries(recentAtTime) as Record<string, number>;
 }
 
 /**

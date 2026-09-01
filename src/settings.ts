@@ -193,8 +193,9 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 		void this.plugin.saveSettings();
 		if (key === 'scanMode') {
 			// 1.13+: re-render so `visible` conditions (target-folder row) re-evaluate.
-			if (typeof this.update === 'function') {
-				this.update();
+			const updateFn = (this as unknown as Record<string, unknown>)['update'];
+			if (typeof updateFn === 'function') {
+				(updateFn as () => void)();
 			}
 			// <1.13: toggle the already-rendered folder row in place.
 			if (this.legacyFolderRowEl) {
@@ -619,7 +620,9 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				break;
 			case 'dropdown':
 				setting.addDropdown(dropdown => {
-					for (const [value, label] of Object.entries(control.options)) {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- needed for Obsidian CI's type-checked lint
+					const options = (control as import('obsidian').SettingDropdownControl).options;
+					for (const [value, label] of Object.entries(options)) {
 						dropdown.addOption(value, label);
 					}
 					dropdown.setValue(String(this.getControlValue(key)));
