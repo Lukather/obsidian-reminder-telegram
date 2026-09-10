@@ -66,14 +66,10 @@ describe('AtTimeScheduler', () => {
 		it('sets nextFire to the earliest at-time deadline minus lead', () => {
 			const callback = vi.fn();
 			const scheduler = new AtTimeScheduler(callback);
-			scheduler.arm(
-				[futureAtTimeTask],
-				0,
-				60,
-				{},
-				REFERENCE_DATE
+			scheduler.arm([futureAtTimeTask], 0, 60, {}, REFERENCE_DATE);
+			expect(scheduler.getNextFire()?.toISOString()).toBe(
+				'2026-06-11T12:30:00.000Z',
 			);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
 		});
 
 		it('ignores completed tasks', () => {
@@ -96,7 +92,9 @@ describe('AtTimeScheduler', () => {
 			const scheduler = new AtTimeScheduler(callback);
 			// 12:30 deadline, 5 min lead → fire at 12:25
 			scheduler.arm([futureAtTimeTask], 5, 60, {}, REFERENCE_DATE);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:25:00.000Z');
+			expect(scheduler.getNextFire()?.toISOString()).toBe(
+				'2026-06-11T12:25:00.000Z',
+			);
 		});
 
 		it('picks the earliest among multiple at-time tasks', () => {
@@ -115,38 +113,60 @@ describe('AtTimeScheduler', () => {
 				deadline: makeDeadlineDateTime('2026-06-11T14:00:00'),
 			});
 			scheduler.arm([a, b, c], 0, 60, {}, REFERENCE_DATE);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T13:00:00.000Z');
+			expect(scheduler.getNextFire()?.toISOString()).toBe(
+				'2026-06-11T13:00:00.000Z',
+			);
 		});
 
 		it('arms for a task parsed from Reminder-plugin @ syntax (issue #96)', () => {
-			const parsed = parseTaskLine('- [ ] Call Grandma @2026-06-11 12:30', 'note.md', 1);
+			const parsed = parseTaskLine(
+				'- [ ] Call Grandma @2026-06-11 12:30',
+				'note.md',
+				1,
+			);
 			expect(parsed).not.toBeNull();
 			expect(parsed!.deadline!.type).toBe('datetime');
 			const scheduler = new AtTimeScheduler(() => undefined);
 			// Reference time 1h before the deadline — derived from the parsed Date so
 			// the test is timezone-agnostic (a fixed UTC reference would place the
 			// local-time deadline in the past on non-UTC machines).
-			const now = new Date(parsed!.deadline!.date.getTime() - 60 * 60 * 1000);
+			const now = new Date(
+				parsed!.deadline!.date.getTime() - 60 * 60 * 1000,
+			);
 			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, now);
 			// No lead time → wake exactly at the parsed deadline.
-			expect(scheduler.getNextFire()?.getTime()).toBe(parsed!.deadline!.date.getTime());
+			expect(scheduler.getNextFire()?.getTime()).toBe(
+				parsed!.deadline!.date.getTime(),
+			);
 		});
 
 		it('arms for a task parsed from Kanban-plugin @@ syntax (issue #97)', () => {
-			const parsed = parseTaskLine('- [ ] Call Grandma @2026-06-11 @@12:30', 'note.md', 1);
+			const parsed = parseTaskLine(
+				'- [ ] Call Grandma @2026-06-11 @@12:30',
+				'note.md',
+				1,
+			);
 			expect(parsed).not.toBeNull();
 			expect(parsed!.deadline!.type).toBe('datetime');
 			expect(parsed!.timeString).toBe('12:30');
 			const scheduler = new AtTimeScheduler(() => undefined);
 			// Same relative reference time as above.
-			const now = new Date(parsed!.deadline!.date.getTime() - 60 * 60 * 1000);
+			const now = new Date(
+				parsed!.deadline!.date.getTime() - 60 * 60 * 1000,
+			);
 			scheduler.arm(parsed ? [parsed] : [], 0, 60, {}, now);
 			// No lead time → wake exactly at the parsed deadline.
-			expect(scheduler.getNextFire()?.getTime()).toBe(parsed!.deadline!.date.getTime());
+			expect(scheduler.getNextFire()?.getTime()).toBe(
+				parsed!.deadline!.date.getTime(),
+			);
 		});
 
 		it('does not arm for a Kanban date-only @YYYY-MM-DD (issue #97)', () => {
-			const parsed = parseTaskLine('- [ ] Buy milk @2026-06-11', 'note.md', 1);
+			const parsed = parseTaskLine(
+				'- [ ] Buy milk @2026-06-11',
+				'note.md',
+				1,
+			);
 			expect(parsed).not.toBeNull();
 			expect(parsed!.deadline!.type).toBe('date-only');
 			const scheduler = new AtTimeScheduler(() => undefined);
@@ -163,7 +183,7 @@ describe('AtTimeScheduler', () => {
 				0,
 				60,
 				{ [futureAtTimeTask.id]: scheduledFire },
-				REFERENCE_DATE
+				REFERENCE_DATE,
 			);
 			// Already notified → no wake scheduled.
 			expect(scheduler.getNextFire()).toBeNull();
@@ -173,14 +193,10 @@ describe('AtTimeScheduler', () => {
 			const callback = vi.fn();
 			const scheduler = new AtTimeScheduler(callback);
 			// Only a future task — past task is excluded (60min back, catch-up=0).
-			scheduler.arm(
-				[futureAtTimeTask],
-				0,
-				0,
-				{},
-				REFERENCE_DATE
+			scheduler.arm([futureAtTimeTask], 0, 0, {}, REFERENCE_DATE);
+			expect(scheduler.getNextFire()?.toISOString()).toBe(
+				'2026-06-11T12:30:00.000Z',
 			);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T12:30:00.000Z');
 		});
 	});
 
@@ -198,14 +214,22 @@ describe('AtTimeScheduler', () => {
 				deadline: makeDeadlineDateTime('2026-06-11T18:00:00'),
 			});
 			scheduler.rearm([later], 0, 60, {}, REFERENCE_DATE);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-11T18:00:00.000Z');
+			expect(scheduler.getNextFire()?.toISOString()).toBe(
+				'2026-06-11T18:00:00.000Z',
+			);
 			expect(scheduler.getNextFire()).not.toEqual(firstWake);
 		});
 
 		it('is a no-op when no tasks qualify', () => {
 			const callback = vi.fn();
 			const scheduler = new AtTimeScheduler(callback);
-			scheduler.rearm([completedAtTimeTask, dateOnlyTask], 0, 60, {}, REFERENCE_DATE);
+			scheduler.rearm(
+				[completedAtTimeTask, dateOnlyTask],
+				0,
+				60,
+				{},
+				REFERENCE_DATE,
+			);
 			expect(scheduler.getNextFire()).toBeNull();
 			expect(scheduler.hasPendingWake()).toBe(false);
 		});
@@ -271,7 +295,9 @@ describe('AtTimeScheduler', () => {
 		it('catches a thrown error from the callback and logs it', async () => {
 			const error = new Error('boom');
 			const callback = vi.fn().mockRejectedValue(error);
-			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+			const consoleSpy = vi
+				.spyOn(console, 'error')
+				.mockImplementation(() => undefined);
 			const scheduler = new AtTimeScheduler(callback);
 			scheduler.arm([futureAtTimeTask], 0, 60, {}, REFERENCE_DATE);
 			await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
@@ -287,7 +313,9 @@ describe('AtTimeScheduler', () => {
 			scheduler.arm([futureAtTimeTask], 0, 60, {}, REFERENCE_DATE);
 			// The scheduler catches and logs internally; the timer
 			// queue should not blow up.
-			await expect(vi.advanceTimersByTimeAsync(30 * 60 * 1000)).resolves.not.toThrow();
+			await expect(
+				vi.advanceTimersByTimeAsync(30 * 60 * 1000),
+			).resolves.not.toThrow();
 		});
 	});
 
@@ -303,7 +331,9 @@ describe('AtTimeScheduler', () => {
 				deadline: makeDeadlineDateTime('2026-06-12T10:00:00'),
 			});
 			scheduler.arm([farFuture], 0, 60, {}, REFERENCE_DATE);
-			expect(scheduler.getNextFire()?.toISOString()).toBe('2026-06-12T10:00:00.000Z');
+			expect(scheduler.getNextFire()?.toISOString()).toBe(
+				'2026-06-12T10:00:00.000Z',
+			);
 		});
 
 		it('returns no wake for an empty task list', () => {

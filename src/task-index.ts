@@ -1,4 +1,4 @@
-import {App, TAbstractFile, TFile} from 'obsidian';
+import { App, TAbstractFile, TFile } from 'obsidian';
 
 import {
 	VaultTask,
@@ -7,7 +7,7 @@ import {
 	parseFrontmatterTasksFromCache,
 	parseInlineTasks,
 } from './tasks';
-import {sanitizeErrorMessage} from './utils';
+import { sanitizeErrorMessage } from './utils';
 
 /**
  * Incremental in-memory index of vault tasks.
@@ -22,9 +22,12 @@ export class TaskIndex {
 
 	constructor(
 		private app: App,
-		scanSettings?: ScanSettings
+		scanSettings?: ScanSettings,
 	) {
-		this.scanSettings = scanSettings || {scanMode: 'whole-vault', targetFolder: ''};
+		this.scanSettings = scanSettings || {
+			scanMode: 'whole-vault',
+			targetFolder: '',
+		};
 	}
 
 	async buildIndex(): Promise<void> {
@@ -55,18 +58,31 @@ export class TaskIndex {
 			const frontmatter = fileCache?.frontmatter;
 
 			const tasks: VaultTask[] = [];
-			tasks.push(...parseFrontmatterTasksFromCache(frontmatter, content, file.path));
+			tasks.push(
+				...parseFrontmatterTasksFromCache(
+					frontmatter,
+					content,
+					file.path,
+				),
+			);
 
 			const endLine =
 				fileCache?.frontmatterPosition?.end?.line ??
 				this.fallbackFrontmatterEndLine(content);
-			tasks.push(...parseInlineTasks(content, file.path, endLine + 1, this.scanSettings));
+			tasks.push(
+				...parseInlineTasks(
+					content,
+					file.path,
+					endLine + 1,
+					this.scanSettings,
+				),
+			);
 
 			this.index.set(file.path, tasks);
 		} catch (error) {
 			console.error(
 				`Error updating task index for ${file.path}:`,
-				sanitizeErrorMessage(String(error))
+				sanitizeErrorMessage(String(error)),
 			);
 		}
 	}
@@ -92,7 +108,10 @@ export class TaskIndex {
 	private shouldTrack(file: TFile): boolean {
 		if (file.extension !== 'md') return false;
 		if (this.scanSettings.scanMode === 'specific-folder') {
-			return this.isFileInFolder(file.path, this.scanSettings.targetFolder);
+			return this.isFileInFolder(
+				file.path,
+				this.scanSettings.targetFolder,
+			);
 		}
 		return true;
 	}

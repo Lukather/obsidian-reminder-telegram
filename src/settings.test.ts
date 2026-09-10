@@ -24,7 +24,10 @@ import {
 	validateReminderSyntaxEnabled,
 	validateStrictTimeMode,
 } from './settings';
-import { _getSettingSnapshots, _resetSettingInstances } from '../__mocks__/obsidian';
+import {
+	_getSettingSnapshots,
+	_resetSettingInstances,
+} from '../__mocks__/obsidian';
 
 // ---------------------------------------------------------------------------
 // DEFAULT_SETTINGS shape — Acceptance criterion #1
@@ -85,27 +88,51 @@ describe('validateLeadTimeMinutes()', () => {
 	});
 
 	it('falls back to default for non-numeric text', () => {
-		expect(validateLeadTimeMinutes('not a number')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes('')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes('abc123')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
+		expect(validateLeadTimeMinutes('not a number')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes('')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes('abc123')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
 	});
 
 	it('falls back to default for negative numbers', () => {
-		expect(validateLeadTimeMinutes('-5')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes('-1')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
+		expect(validateLeadTimeMinutes('-5')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes('-1')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
 	});
 
 	it('falls back to default for values > 1440', () => {
-		expect(validateLeadTimeMinutes('1441')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes('9999')).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
+		expect(validateLeadTimeMinutes('1441')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes('9999')).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
 	});
 
 	it('falls back to default for NaN / Infinity / null / undefined', () => {
-		expect(validateLeadTimeMinutes(NaN)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes(Infinity)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes(-Infinity)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes(null)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes(undefined)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
+		expect(validateLeadTimeMinutes(NaN)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes(Infinity)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes(-Infinity)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes(null)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes(undefined)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
 	});
 
 	it('accepts a number directly (not just strings)', () => {
@@ -115,8 +142,12 @@ describe('validateLeadTimeMinutes()', () => {
 	});
 
 	it('falls back to default when given a number out of range', () => {
-		expect(validateLeadTimeMinutes(-5)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
-		expect(validateLeadTimeMinutes(1441)).toBe(DEFAULT_SETTINGS.leadTimeMinutes);
+		expect(validateLeadTimeMinutes(-5)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
+		expect(validateLeadTimeMinutes(1441)).toBe(
+			DEFAULT_SETTINGS.leadTimeMinutes,
+		);
 	});
 });
 
@@ -142,23 +173,39 @@ describe('validateAtTimeCatchUpWindowMinutes()', () => {
 	});
 
 	it('falls back to default for non-numeric text', () => {
-		expect(validateAtTimeCatchUpWindowMinutes('foo')).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
-		expect(validateAtTimeCatchUpWindowMinutes('')).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
+		expect(validateAtTimeCatchUpWindowMinutes('foo')).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
+		expect(validateAtTimeCatchUpWindowMinutes('')).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
 	});
 
 	it('falls back to default for negative numbers', () => {
-		expect(validateAtTimeCatchUpWindowMinutes('-1')).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
+		expect(validateAtTimeCatchUpWindowMinutes('-1')).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
 	});
 
 	it('falls back to default for values > 10080', () => {
-		expect(validateAtTimeCatchUpWindowMinutes('10081')).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
-		expect(validateAtTimeCatchUpWindowMinutes('100000')).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
+		expect(validateAtTimeCatchUpWindowMinutes('10081')).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
+		expect(validateAtTimeCatchUpWindowMinutes('100000')).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
 	});
 
 	it('falls back to default for NaN / null / undefined', () => {
-		expect(validateAtTimeCatchUpWindowMinutes(NaN)).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
-		expect(validateAtTimeCatchUpWindowMinutes(null)).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
-		expect(validateAtTimeCatchUpWindowMinutes(undefined)).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
+		expect(validateAtTimeCatchUpWindowMinutes(NaN)).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
+		expect(validateAtTimeCatchUpWindowMinutes(null)).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
+		expect(validateAtTimeCatchUpWindowMinutes(undefined)).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
 	});
 
 	it('accepts a number directly (not just strings)', () => {
@@ -168,8 +215,12 @@ describe('validateAtTimeCatchUpWindowMinutes()', () => {
 	});
 
 	it('falls back to default when given a number out of range', () => {
-		expect(validateAtTimeCatchUpWindowMinutes(-5)).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
-		expect(validateAtTimeCatchUpWindowMinutes(10081)).toBe(DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes);
+		expect(validateAtTimeCatchUpWindowMinutes(-5)).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
+		expect(validateAtTimeCatchUpWindowMinutes(10081)).toBe(
+			DEFAULT_SETTINGS.atTimeCatchUpWindowMinutes,
+		);
 	});
 });
 
@@ -187,10 +238,18 @@ describe('validateAtTimeNotificationsEnabled()', () => {
 	});
 
 	it('falls back to default for non-boolean values', () => {
-		expect(validateAtTimeNotificationsEnabled('true')).toBe(DEFAULT_SETTINGS.atTimeNotificationsEnabled);
-		expect(validateAtTimeNotificationsEnabled(0)).toBe(DEFAULT_SETTINGS.atTimeNotificationsEnabled);
-		expect(validateAtTimeNotificationsEnabled(null)).toBe(DEFAULT_SETTINGS.atTimeNotificationsEnabled);
-		expect(validateAtTimeNotificationsEnabled(undefined)).toBe(DEFAULT_SETTINGS.atTimeNotificationsEnabled);
+		expect(validateAtTimeNotificationsEnabled('true')).toBe(
+			DEFAULT_SETTINGS.atTimeNotificationsEnabled,
+		);
+		expect(validateAtTimeNotificationsEnabled(0)).toBe(
+			DEFAULT_SETTINGS.atTimeNotificationsEnabled,
+		);
+		expect(validateAtTimeNotificationsEnabled(null)).toBe(
+			DEFAULT_SETTINGS.atTimeNotificationsEnabled,
+		);
+		expect(validateAtTimeNotificationsEnabled(undefined)).toBe(
+			DEFAULT_SETTINGS.atTimeNotificationsEnabled,
+		);
 	});
 });
 
@@ -204,10 +263,16 @@ describe('validateStrictTimeMode()', () => {
 	});
 
 	it('falls back to default for non-boolean values', () => {
-		expect(validateStrictTimeMode('false')).toBe(DEFAULT_SETTINGS.strictTimeMode);
+		expect(validateStrictTimeMode('false')).toBe(
+			DEFAULT_SETTINGS.strictTimeMode,
+		);
 		expect(validateStrictTimeMode(1)).toBe(DEFAULT_SETTINGS.strictTimeMode);
-		expect(validateStrictTimeMode(null)).toBe(DEFAULT_SETTINGS.strictTimeMode);
-		expect(validateStrictTimeMode(undefined)).toBe(DEFAULT_SETTINGS.strictTimeMode);
+		expect(validateStrictTimeMode(null)).toBe(
+			DEFAULT_SETTINGS.strictTimeMode,
+		);
+		expect(validateStrictTimeMode(undefined)).toBe(
+			DEFAULT_SETTINGS.strictTimeMode,
+		);
 	});
 });
 
@@ -221,13 +286,19 @@ describe('validateReminderSyntaxEnabled() (issue #96)', () => {
 	});
 
 	it('falls back to default for non-boolean values', () => {
-		expect(validateReminderSyntaxEnabled(undefined)).toBe(DEFAULT_SETTINGS.reminderSyntaxEnabled);
-		expect(validateReminderSyntaxEnabled('off')).toBe(DEFAULT_SETTINGS.reminderSyntaxEnabled);
-		expect(validateReminderSyntaxEnabled(0)).toBe(DEFAULT_SETTINGS.reminderSyntaxEnabled);
+		expect(validateReminderSyntaxEnabled(undefined)).toBe(
+			DEFAULT_SETTINGS.reminderSyntaxEnabled,
+		);
+		expect(validateReminderSyntaxEnabled('off')).toBe(
+			DEFAULT_SETTINGS.reminderSyntaxEnabled,
+		);
+		expect(validateReminderSyntaxEnabled(0)).toBe(
+			DEFAULT_SETTINGS.reminderSyntaxEnabled,
+		);
 	});
 });
 
-	describe('validateKanbanSyntaxEnabled() (issue #97)', () => {
+describe('validateKanbanSyntaxEnabled() (issue #97)', () => {
 	it('passes through true', () => {
 		expect(validateKanbanSyntaxEnabled(true)).toBe(true);
 	});
@@ -237,9 +308,15 @@ describe('validateReminderSyntaxEnabled() (issue #96)', () => {
 	});
 
 	it('falls back to default for non-boolean values', () => {
-		expect(validateKanbanSyntaxEnabled(undefined)).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
-		expect(validateKanbanSyntaxEnabled('off')).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
-		expect(validateKanbanSyntaxEnabled(0)).toBe(DEFAULT_SETTINGS.kanbanSyntaxEnabled);
+		expect(validateKanbanSyntaxEnabled(undefined)).toBe(
+			DEFAULT_SETTINGS.kanbanSyntaxEnabled,
+		);
+		expect(validateKanbanSyntaxEnabled('off')).toBe(
+			DEFAULT_SETTINGS.kanbanSyntaxEnabled,
+		);
+		expect(validateKanbanSyntaxEnabled(0)).toBe(
+			DEFAULT_SETTINGS.kanbanSyntaxEnabled,
+		);
 	});
 });
 
@@ -253,9 +330,15 @@ describe('validateRecurringTasksEnabled() (issue #98)', () => {
 	});
 
 	it('falls back to default for non-boolean values', () => {
-		expect(validateRecurringTasksEnabled(undefined)).toBe(DEFAULT_SETTINGS.recurringTasksEnabled);
-		expect(validateRecurringTasksEnabled('yes')).toBe(DEFAULT_SETTINGS.recurringTasksEnabled);
-		expect(validateRecurringTasksEnabled(1)).toBe(DEFAULT_SETTINGS.recurringTasksEnabled);
+		expect(validateRecurringTasksEnabled(undefined)).toBe(
+			DEFAULT_SETTINGS.recurringTasksEnabled,
+		);
+		expect(validateRecurringTasksEnabled('yes')).toBe(
+			DEFAULT_SETTINGS.recurringTasksEnabled,
+		);
+		expect(validateRecurringTasksEnabled(1)).toBe(
+			DEFAULT_SETTINGS.recurringTasksEnabled,
+		);
 	});
 });
 
@@ -314,7 +397,9 @@ describe('ReminderTelegramSettingTab — at-time section', () => {
 		// The mock records each Setting's metadata; assert the heading setting
 		// exists and is marked as a heading.
 		const snapshots = _getSettingSnapshots();
-		const headingInstance = snapshots.find(s => s.isHeading && s.name === 'At-time notifications');
+		const headingInstance = snapshots.find(
+			(s) => s.isHeading && s.name === 'At-time notifications',
+		);
 		expect(headingInstance).toBeDefined();
 	});
 
@@ -371,7 +456,10 @@ describe('save+load round-trip for at-time settings (AC #3)', () => {
 		await stub.plugin.saveData({ atTimeNotificationsEnabled: false });
 		const reloaded = await stub.plugin.loadData();
 		// Simulate the loadSettings merge that lives in main.ts
-		const merged = { ...DEFAULT_SETTINGS, ...(reloaded as Partial<ReminderTelegramSettings>) };
+		const merged = {
+			...DEFAULT_SETTINGS,
+			...(reloaded as Partial<ReminderTelegramSettings>),
+		};
 		expect(merged.atTimeNotificationsEnabled).toBe(false);
 	});
 
@@ -383,7 +471,9 @@ describe('save+load round-trip for at-time settings (AC #3)', () => {
 			...DEFAULT_SETTINGS,
 			...(reloaded as Partial<ReminderTelegramSettings>),
 		};
-		merged.leadTimeMinutes = validateLeadTimeMinutes(merged.leadTimeMinutes);
+		merged.leadTimeMinutes = validateLeadTimeMinutes(
+			merged.leadTimeMinutes,
+		);
 		expect(merged.leadTimeMinutes).toBe(5);
 	});
 

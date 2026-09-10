@@ -32,7 +32,11 @@ function mockTelegramSuccess(): void {
 	mockResponse({ ok: true, result: {} });
 }
 
-function mockTelegramError(errorCode: number, description: string, extra?: Record<string, unknown>): void {
+function mockTelegramError(
+	errorCode: number,
+	description: string,
+	extra?: Record<string, unknown>,
+): void {
 	mockResponse({ ok: false, error_code: errorCode, description, ...extra });
 }
 
@@ -106,7 +110,11 @@ describe('sendTelegramMessage() — success', () => {
 	});
 
 	it('sends a basic message', async () => {
-		const result = await sendTelegramMessage(BOT_TOKEN, CHAT_ID, 'Hello world');
+		const result = await sendTelegramMessage(
+			BOT_TOKEN,
+			CHAT_ID,
+			'Hello world',
+		);
 		expect(result.success).toBe(true);
 		expect(requestUrl).toHaveBeenCalledTimes(1);
 		expect(getLastCallUrl()).toContain('api.telegram.org');
@@ -114,7 +122,12 @@ describe('sendTelegramMessage() — success', () => {
 	});
 
 	it('includes parse_mode when markdown is enabled', async () => {
-		await sendTelegramMessage(BOT_TOKEN, CHAT_ID, '*bold text*', 'Markdown');
+		await sendTelegramMessage(
+			BOT_TOKEN,
+			CHAT_ID,
+			'*bold text*',
+			'Markdown',
+		);
 		const body = getLastCallBody();
 		expect(body.parse_mode).toBe('Markdown');
 	});
@@ -201,7 +214,12 @@ describe('sendTelegramMessage() — 429 retry', () => {
 		// Second call: success
 		(requestUrl as ReturnType<typeof vi.fn>)
 			.mockResolvedValueOnce({
-				text: JSON.stringify({ ok: false, error_code: 429, description: 'Too Many Requests', parameters: { retry_after: 1 } }),
+				text: JSON.stringify({
+					ok: false,
+					error_code: 429,
+					description: 'Too Many Requests',
+					parameters: { retry_after: 1 },
+				}),
 				json: { ok: false, error_code: 429 },
 				status: 429,
 			})
@@ -224,12 +242,21 @@ describe('sendTelegramMessage() — 429 retry', () => {
 	it('retries and returns error if retry also fails', async () => {
 		(requestUrl as ReturnType<typeof vi.fn>)
 			.mockResolvedValueOnce({
-				text: JSON.stringify({ ok: false, error_code: 429, description: 'Too Many Requests', parameters: { retry_after: 1 } }),
+				text: JSON.stringify({
+					ok: false,
+					error_code: 429,
+					description: 'Too Many Requests',
+					parameters: { retry_after: 1 },
+				}),
 				json: { ok: false, error_code: 429 },
 				status: 429,
 			})
 			.mockResolvedValueOnce({
-				text: JSON.stringify({ ok: false, error_code: 400, description: 'Still bad' }),
+				text: JSON.stringify({
+					ok: false,
+					error_code: 400,
+					description: 'Still bad',
+				}),
 				json: { ok: false, error_code: 400 },
 				status: 400,
 			});
@@ -251,7 +278,9 @@ describe('sendTelegramMessage() — 429 retry', () => {
 	});
 
 	it('does not retry when retry_after is 0', async () => {
-		mockTelegramError(429, 'Too Many Requests', { parameters: { retry_after: 0 } });
+		mockTelegramError(429, 'Too Many Requests', {
+			parameters: { retry_after: 0 },
+		});
 		const result = await sendTelegramMessage(BOT_TOKEN, CHAT_ID, 'hello');
 		expect(result.success).toBe(false);
 		expect(requestUrl).toHaveBeenCalledTimes(1);
@@ -312,8 +341,19 @@ describe('renderTemplate() — via sendTaskReminder', () => {
 	});
 
 	it('substitutes all variables', async () => {
-		const template = 'Task: {taskName}\nFile: {fileName}\nDue: {deadline}\nPath: {filePath}\nID: {taskId}';
-		await sendTaskReminder(BOT_TOKEN, CHAT_ID, 'My Task', 'note.md', '2026-06-11', template, false, 'notes/note.md', 'task-123');
+		const template =
+			'Task: {taskName}\nFile: {fileName}\nDue: {deadline}\nPath: {filePath}\nID: {taskId}';
+		await sendTaskReminder(
+			BOT_TOKEN,
+			CHAT_ID,
+			'My Task',
+			'note.md',
+			'2026-06-11',
+			template,
+			false,
+			'notes/note.md',
+			'task-123',
+		);
 		const body = getLastCallBody();
 		expect(body.text).toContain('Task: My Task');
 		expect(body.text).toContain('File: note.md');
@@ -324,14 +364,28 @@ describe('renderTemplate() — via sendTaskReminder', () => {
 
 	it('leaves unknown variables as literal {varName}', async () => {
 		const template = 'Hello {unknownVar} and {taskName}';
-		await sendTaskReminder(BOT_TOKEN, CHAT_ID, 'Task', 'f.md', '2026-01-01', template, false);
+		await sendTaskReminder(
+			BOT_TOKEN,
+			CHAT_ID,
+			'Task',
+			'f.md',
+			'2026-01-01',
+			template,
+			false,
+		);
 		const body = getLastCallBody();
 		expect(body.text).toContain('{unknownVar}');
 		expect(body.text).toContain('Task');
 	});
 
 	it('uses default template when none provided', async () => {
-		await sendTaskReminder(BOT_TOKEN, CHAT_ID, 'My Task', 'file.md', '2026-06-11');
+		await sendTaskReminder(
+			BOT_TOKEN,
+			CHAT_ID,
+			'My Task',
+			'file.md',
+			'2026-06-11',
+		);
 		const body = getLastCallBody();
 		expect(body.text).toContain('Task: My Task');
 		expect(body.text).toContain('File: file.md');
@@ -340,7 +394,15 @@ describe('renderTemplate() — via sendTaskReminder', () => {
 
 	it('handles special characters in variable values', async () => {
 		const template = '{taskName}';
-		await sendTaskReminder(BOT_TOKEN, CHAT_ID, 'Task with $pecial [chars]', 'f.md', '2026-01-01', template, false);
+		await sendTaskReminder(
+			BOT_TOKEN,
+			CHAT_ID,
+			'Task with $pecial [chars]',
+			'f.md',
+			'2026-01-01',
+			template,
+			false,
+		);
 		const body = getLastCallBody();
 		expect(body.text).toBe('Task with $pecial [chars]');
 	});
@@ -364,10 +426,28 @@ describe('sendBulkReminders()', () => {
 
 	it('renders bulk message with count and task lines', async () => {
 		const tasks: TelegramTaskTemplateFields[] = [
-			{ taskName: 'Task A', fileName: 'a.md', deadline: '2026-06-11', filePath: 'a.md', taskId: 'id-a' },
-			{ taskName: 'Task B', fileName: 'b.md', deadline: '2026-06-12', filePath: 'b.md', taskId: 'id-b' },
+			{
+				taskName: 'Task A',
+				fileName: 'a.md',
+				deadline: '2026-06-11',
+				filePath: 'a.md',
+				taskId: 'id-a',
+			},
+			{
+				taskName: 'Task B',
+				fileName: 'b.md',
+				deadline: '2026-06-12',
+				filePath: 'b.md',
+				taskId: 'id-b',
+			},
 		];
-		await sendBulkReminders(BOT_TOKEN, CHAT_ID, tasks, 'You have {count} tasks:\n{tasks}', '• {taskName} ({deadline})');
+		await sendBulkReminders(
+			BOT_TOKEN,
+			CHAT_ID,
+			tasks,
+			'You have {count} tasks:\n{tasks}',
+			'• {taskName} ({deadline})',
+		);
 		const body = getLastCallBody();
 		expect(body.text).toContain('You have 2 tasks:');
 		expect(body.text).toContain('• Task A (2026-06-11)');
@@ -376,7 +456,13 @@ describe('sendBulkReminders()', () => {
 
 	it('uses default templates when none provided', async () => {
 		const tasks: TelegramTaskTemplateFields[] = [
-			{ taskName: 'Task', fileName: 'f.md', deadline: '2026-06-11', filePath: 'f.md', taskId: 'id' },
+			{
+				taskName: 'Task',
+				fileName: 'f.md',
+				deadline: '2026-06-11',
+				filePath: 'f.md',
+				taskId: 'id',
+			},
 		];
 		await sendBulkReminders(BOT_TOKEN, CHAT_ID, tasks);
 		const body = getLastCallBody();
@@ -386,10 +472,28 @@ describe('sendBulkReminders()', () => {
 
 	it('joins task lines with newlines', async () => {
 		const tasks: TelegramTaskTemplateFields[] = [
-			{ taskName: 'A', fileName: 'a.md', deadline: '2026-01-01', filePath: 'a.md', taskId: '1' },
-			{ taskName: 'B', fileName: 'b.md', deadline: '2026-01-02', filePath: 'b.md', taskId: '2' },
+			{
+				taskName: 'A',
+				fileName: 'a.md',
+				deadline: '2026-01-01',
+				filePath: 'a.md',
+				taskId: '1',
+			},
+			{
+				taskName: 'B',
+				fileName: 'b.md',
+				deadline: '2026-01-02',
+				filePath: 'b.md',
+				taskId: '2',
+			},
 		];
-		await sendBulkReminders(BOT_TOKEN, CHAT_ID, tasks, '{tasks}', '{taskName}');
+		await sendBulkReminders(
+			BOT_TOKEN,
+			CHAT_ID,
+			tasks,
+			'{tasks}',
+			'{taskName}',
+		);
 		const body = getLastCallBody();
 		expect(body.text).toBe('A\nB');
 	});
@@ -413,7 +517,12 @@ describe('sendTestNotification()', () => {
 	});
 
 	it('sends with custom template', async () => {
-		await sendTestNotification(BOT_TOKEN, CHAT_ID, 'Custom test message', false);
+		await sendTestNotification(
+			BOT_TOKEN,
+			CHAT_ID,
+			'Custom test message',
+			false,
+		);
 		const body = getLastCallBody();
 		expect(body.text).toBe('Custom test message');
 	});

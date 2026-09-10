@@ -1,7 +1,7 @@
 /**
  * Telegram API client for sending notifications
  */
-import {requestUrl} from 'obsidian';
+import { requestUrl } from 'obsidian';
 
 const TELEGRAM_API_URL = 'https://api.telegram.org';
 
@@ -18,7 +18,10 @@ interface TelegramResponse {
 /**
  * Renders a template string with variable substitution
  */
-function renderTemplate(template: string, variables: Record<string, string | number>): string {
+function renderTemplate(
+	template: string,
+	variables: Record<string, string | number>,
+): string {
 	try {
 		return template.replace(/\{(\w+)\}/g, (match, varName) => {
 			const value = variables[varName as keyof typeof variables];
@@ -57,7 +60,10 @@ export interface TelegramTaskTemplateFields {
  * When truncating in Markdown mode, strips trailing unpaired delimiters to
  * avoid Telegram parse errors.
  */
-function ensureMessageLength(text: string, parseMode: 'Markdown' | 'HTML' | null): string {
+function ensureMessageLength(
+	text: string,
+	parseMode: 'Markdown' | 'HTML' | null,
+): string {
 	const maxLength = 4096;
 
 	if (text.length <= maxLength) {
@@ -74,7 +80,8 @@ function ensureMessageLength(text: string, parseMode: 'Markdown' | 'HTML' | null
 		const lastNewline = truncated.lastIndexOf('\n');
 		const lastBreak = Math.max(lastSpace, lastNewline);
 
-		if (lastBreak > maxLength * 0.8) { // Only adjust if we're not too close to the limit
+		if (lastBreak > maxLength * 0.8) {
+			// Only adjust if we're not too close to the limit
 			truncated = truncated.substring(0, lastBreak);
 		}
 
@@ -95,7 +102,7 @@ export async function sendTelegramMessage(
 	botToken: string,
 	chatId: string,
 	text: string,
-	parseMode: 'Markdown' | 'HTML' | null = null
+	parseMode: 'Markdown' | 'HTML' | null = null,
 ): Promise<TelegramSendResult> {
 	try {
 		if (!botToken || botToken.trim() === '') {
@@ -112,10 +119,10 @@ export async function sendTelegramMessage(
 
 		// Ensure message length doesn't exceed Telegram's limit
 		const safeText = ensureMessageLength(text, parseMode);
-		
+
 		const requestBody: Record<string, string> = {
 			chat_id: chatId,
-			text: safeText
+			text: safeText,
 		};
 		if (parseMode) {
 			requestBody.parse_mode = parseMode;
@@ -125,9 +132,9 @@ export async function sendTelegramMessage(
 			url,
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
 			},
-			body: JSON.stringify(requestBody)
+			body: JSON.stringify(requestBody),
 		});
 
 		let data: TelegramResponse;
@@ -136,40 +143,64 @@ export async function sendTelegramMessage(
 		} catch {
 			return {
 				success: false,
-				error: 'Failed to parse Telegram response'
+				error: 'Failed to parse Telegram response',
 			};
 		}
 
 		if (!data.ok) {
 			// Retry on rate limit (429) — Telegram returns retry_after in seconds
-			if (data.error_code === 429 && data.parameters?.retry_after && data.parameters.retry_after > 0) {
-				await new Promise(resolve => window.setTimeout(resolve, data.parameters!.retry_after! * 1000));
+			if (
+				data.error_code === 429 &&
+				data.parameters?.retry_after &&
+				data.parameters.retry_after > 0
+			) {
+				await new Promise((resolve) =>
+					window.setTimeout(
+						resolve,
+						data.parameters!.retry_after! * 1000,
+					),
+				);
 				const retryResponse = await requestUrl({
 					url,
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(requestBody)
+					body: JSON.stringify(requestBody),
 				});
 				let retryData: TelegramResponse;
 				try {
-					retryData = JSON.parse(retryResponse.text) as TelegramResponse;
+					retryData = JSON.parse(
+						retryResponse.text,
+					) as TelegramResponse;
 				} catch {
-					return { success: false, error: 'Failed to parse Telegram retry response' };
+					return {
+						success: false,
+						error: 'Failed to parse Telegram retry response',
+					};
 				}
 				if (!retryData.ok) {
-					return { success: false, error: retryData.description || `Error code: ${retryData.error_code}` };
+					return {
+						success: false,
+						error:
+							retryData.description ||
+							`Error code: ${retryData.error_code}`,
+					};
 				}
-				return { success: true, message: 'Message sent successfully (after rate limit retry)' };
+				return {
+					success: true,
+					message:
+						'Message sent successfully (after rate limit retry)',
+				};
 			}
 			return {
 				success: false,
-				error: data.description || `Error code: ${data.error_code}`
+				error: data.description || `Error code: ${data.error_code}`,
 			};
 		}
 
 		return { success: true, message: 'Message sent successfully' };
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error';
 		return { success: false, error: errorMessage };
 	}
 }
@@ -181,13 +212,13 @@ export async function sendTestNotification(
 	botToken: string,
 	chatId: string,
 	template: string = 'Test notification from reminder Telegram plugin',
-	useMarkdown: boolean = false
+	useMarkdown: boolean = false,
 ): Promise<TelegramSendResult> {
 	return sendTelegramMessage(
 		botToken,
 		chatId,
 		template,
-		useMarkdown ? 'Markdown' : null
+		useMarkdown ? 'Markdown' : null,
 	);
 }
 
@@ -204,26 +235,27 @@ export async function sendTaskReminder(
 	useMarkdown: boolean = false,
 	filePath: string = '',
 	taskId: string = '',
-	delayedByMinutes?: number | null
+	delayedByMinutes?: number | null,
 ): Promise<TelegramSendResult> {
 	const rendered = renderTemplate(template, {
 		taskName,
 		fileName,
 		deadline,
 		filePath,
-		taskId
+		taskId,
 	});
 	// Append a (delayed Xm) suffix when the at-time scheduler fired this
 	// notification later than its scheduled time. Omitted for on-time
 	// fires and for the date-only / upcoming paths where delay is N/A.
-	const message = typeof delayedByMinutes === 'number' && delayedByMinutes > 0
-		? `${rendered} (delayed ${delayedByMinutes}m)`
-		: rendered;
+	const message =
+		typeof delayedByMinutes === 'number' && delayedByMinutes > 0
+			? `${rendered} (delayed ${delayedByMinutes}m)`
+			: rendered;
 	return sendTelegramMessage(
 		botToken,
 		chatId,
 		message,
-		useMarkdown ? 'Markdown' : null
+		useMarkdown ? 'Markdown' : null,
 	);
 }
 
@@ -236,20 +268,20 @@ export async function sendBulkReminders(
 	tasks: TelegramTaskTemplateFields[],
 	bulkTemplate: string = 'You have {count} task(s) due:\n\n{tasks}',
 	individualTemplate: string = 'Task: {taskName} ({deadline}) - {fileName}',
-	useMarkdown: boolean = false
+	useMarkdown: boolean = false,
 ): Promise<TelegramSendResult> {
 	if (tasks.length === 0) {
 		return { success: false, error: 'No tasks to send' };
 	}
 
 	// Render individual task lines
-	const taskLines = tasks.map(task => {
+	const taskLines = tasks.map((task) => {
 		const line = renderTemplate(individualTemplate, {
 			taskName: task.taskName,
 			fileName: task.fileName,
 			deadline: task.deadline,
 			filePath: task.filePath,
-			taskId: task.taskId
+			taskId: task.taskId,
 		});
 		// Same delayed-suffix rule as the per-task path: only append when
 		// this entry has a positive delay recorded.
@@ -262,13 +294,13 @@ export async function sendBulkReminders(
 	// Render bulk message
 	const message = renderTemplate(bulkTemplate, {
 		count: tasks.length,
-		tasks: taskLines.join('\n')
+		tasks: taskLines.join('\n'),
 	});
 
 	return sendTelegramMessage(
 		botToken,
 		chatId,
 		message,
-		useMarkdown ? 'Markdown' : null
+		useMarkdown ? 'Markdown' : null,
 	);
 }

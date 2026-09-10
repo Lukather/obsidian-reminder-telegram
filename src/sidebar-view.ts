@@ -1,5 +1,5 @@
-import {ItemView, WorkspaceLeaf} from 'obsidian';
-import {VaultTask} from './tasks';
+import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { VaultTask } from './tasks';
 import {
 	SidebarFilterState,
 	TimeScopeFilter,
@@ -21,7 +21,10 @@ export interface SidebarDataProvider {
 export class ReminderTelegramSidebarView extends ItemView {
 	private provider: SidebarDataProvider;
 	private container: HTMLElement | null = null;
-	private filterState: SidebarFilterState = {timeScope: 'none', selectedTag: null};
+	private filterState: SidebarFilterState = {
+		timeScope: 'none',
+		selectedTag: null,
+	};
 	private refreshTimer: number | null = null;
 	private readonly DEBOUNCE_MS = 400;
 
@@ -43,7 +46,9 @@ export class ReminderTelegramSidebarView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
-		this.container = this.contentEl.createDiv({cls: 'reminder-telegram-sidebar'});
+		this.container = this.contentEl.createDiv({
+			cls: 'reminder-telegram-sidebar',
+		});
 		this.render();
 	}
 
@@ -79,7 +84,11 @@ export class ReminderTelegramSidebarView extends ItemView {
 		this.renderFilterBar(this.container, allTasks);
 
 		const categorized = categorizeTasks(allTasks, new Date(), daysAhead);
-		let filtered = applyTimeScopeFilter(categorized, this.filterState.timeScope, daysAhead);
+		let filtered = applyTimeScopeFilter(
+			categorized,
+			this.filterState.timeScope,
+			daysAhead,
+		);
 		filtered = applyTagFilter(filtered, this.filterState.selectedTag);
 
 		const hasAnyTasks =
@@ -93,26 +102,45 @@ export class ReminderTelegramSidebarView extends ItemView {
 		}
 
 		this.renderSection(this.container, 'Overdue', filtered.overdue, true);
-		this.renderSection(this.container, 'Due Today', filtered.dueToday, false);
-		this.renderSection(this.container, 'Upcoming', filtered.upcoming, false);
+		this.renderSection(
+			this.container,
+			'Due Today',
+			filtered.dueToday,
+			false,
+		);
+		this.renderSection(
+			this.container,
+			'Upcoming',
+			filtered.upcoming,
+			false,
+		);
 	}
 
-	private renderFilterBar(container: HTMLElement, allTasks: VaultTask[]): void {
-		const bar = container.createDiv({cls: 'reminder-telegram-sidebar-filter-bar'});
+	private renderFilterBar(
+		container: HTMLElement,
+		allTasks: VaultTask[],
+	): void {
+		const bar = container.createDiv({
+			cls: 'reminder-telegram-sidebar-filter-bar',
+		});
 
-		const timeGroup = bar.createDiv({cls: 'reminder-telegram-sidebar-filter-group'});
+		const timeGroup = bar.createDiv({
+			cls: 'reminder-telegram-sidebar-filter-group',
+		});
 		this.renderScopeButton(timeGroup, 'Today', 'today');
 		this.renderScopeButton(timeGroup, 'Week', 'week');
 
 		const tags = collectAllTags(allTasks);
 		if (tags.length > 0) {
-			const tagWrapper = bar.createDiv({cls: 'reminder-telegram-sidebar-tag-wrapper'});
+			const tagWrapper = bar.createDiv({
+				cls: 'reminder-telegram-sidebar-tag-wrapper',
+			});
 			const select = tagWrapper.createEl('select', {
 				cls: 'reminder-telegram-sidebar-tag-select dropdown',
 			});
-			select.createEl('option', {text: 'All tags', value: ''});
+			select.createEl('option', { text: 'All tags', value: '' });
 			for (const tag of tags) {
-				select.createEl('option', {text: tag, value: tag});
+				select.createEl('option', { text: tag, value: tag });
 			}
 			select.value = this.filterState.selectedTag ?? '';
 			select.addEventListener('change', () => {
@@ -122,19 +150,26 @@ export class ReminderTelegramSidebarView extends ItemView {
 		}
 
 		// Clear filters button (only shown when a filter is active)
-		if (this.filterState.timeScope !== 'none' || this.filterState.selectedTag) {
+		if (
+			this.filterState.timeScope !== 'none' ||
+			this.filterState.selectedTag
+		) {
 			const clearBtn = bar.createEl('button', {
 				cls: 'reminder-telegram-sidebar-clear-btn',
 				text: 'Clear',
 			});
 			clearBtn.addEventListener('click', () => {
-				this.filterState = {timeScope: 'none', selectedTag: null};
+				this.filterState = { timeScope: 'none', selectedTag: null };
 				this.render();
 			});
 		}
 	}
 
-	private renderScopeButton(container: HTMLElement, label: string, scope: TimeScopeFilter): void {
+	private renderScopeButton(
+		container: HTMLElement,
+		label: string,
+		scope: TimeScopeFilter,
+	): void {
 		const active = this.filterState.timeScope === scope;
 		const btn = container.createEl('button', {
 			cls: `reminder-telegram-sidebar-scope-btn${active ? ' is-active' : ''}`,
@@ -151,40 +186,64 @@ export class ReminderTelegramSidebarView extends ItemView {
 		container: HTMLElement,
 		title: string,
 		tasks: VaultTask[],
-		isOverdue: boolean
+		isOverdue: boolean,
 	): void {
 		if (tasks.length === 0) return;
 
 		const section = container.createDiv({
 			cls: `reminder-telegram-sidebar-section${isOverdue ? ' is-overdue' : ''}`,
 		});
-		const header = section.createDiv({cls: 'reminder-telegram-sidebar-section-header'});
-		header.createSpan({cls: 'reminder-telegram-sidebar-section-title', text: title});
+		const header = section.createDiv({
+			cls: 'reminder-telegram-sidebar-section-header',
+		});
+		header.createSpan({
+			cls: 'reminder-telegram-sidebar-section-title',
+			text: title,
+		});
 		header.createSpan({
 			cls: 'reminder-telegram-sidebar-section-count',
 			text: String(tasks.length),
 		});
 
-		const list = section.createDiv({cls: 'reminder-telegram-sidebar-task-list'});
+		const list = section.createDiv({
+			cls: 'reminder-telegram-sidebar-task-list',
+		});
 		for (const task of tasks) {
 			this.renderTaskRow(list, task, isOverdue);
 		}
 	}
 
-	private renderTaskRow(container: HTMLElement, task: VaultTask, isOverdue: boolean): void {
+	private renderTaskRow(
+		container: HTMLElement,
+		task: VaultTask,
+		isOverdue: boolean,
+	): void {
 		const row = container.createDiv({
 			cls: `reminder-telegram-sidebar-task-row${isOverdue ? ' is-overdue' : ''}`,
 		});
 
-		const main = row.createDiv({cls: 'reminder-telegram-sidebar-task-main'});
-		main.createSpan({cls: 'reminder-telegram-sidebar-task-text', text: task.text || '(no text)'});
+		const main = row.createDiv({
+			cls: 'reminder-telegram-sidebar-task-main',
+		});
+		main.createSpan({
+			cls: 'reminder-telegram-sidebar-task-text',
+			text: task.text || '(no text)',
+		});
 
-		const meta = row.createDiv({cls: 'reminder-telegram-sidebar-task-meta'});
-		meta.createSpan({cls: 'reminder-telegram-sidebar-task-file', text: task.fileName});
+		const meta = row.createDiv({
+			cls: 'reminder-telegram-sidebar-task-meta',
+		});
+		meta.createSpan({
+			cls: 'reminder-telegram-sidebar-task-file',
+			text: task.fileName,
+		});
 
 		if (task.deadline) {
 			const relative = formatRelativeDate(task.deadline, new Date());
-			meta.createSpan({cls: 'reminder-telegram-sidebar-task-date', text: relative});
+			meta.createSpan({
+				cls: 'reminder-telegram-sidebar-task-date',
+				text: relative,
+			});
 		}
 
 		row.addEventListener('click', () => {
@@ -193,7 +252,9 @@ export class ReminderTelegramSidebarView extends ItemView {
 	}
 
 	private renderEmptyState(container: HTMLElement): void {
-		const empty = container.createDiv({cls: 'reminder-telegram-sidebar-empty'});
+		const empty = container.createDiv({
+			cls: 'reminder-telegram-sidebar-empty',
+		});
 		empty.createSpan({
 			cls: 'reminder-telegram-sidebar-empty-text',
 			text: 'No tasks match the current filters.',

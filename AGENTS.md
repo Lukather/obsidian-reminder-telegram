@@ -5,12 +5,14 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 ## Tasks
 
 **YAML Frontmatter** (primary):
+
 - Requires `---` delimiters and a `scheduled` or `due` field (ISO: `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`)
 - Completion from `status: done|completed|cancelled|archived` (or presence of `completedDate`); `open` / `in-progress` are incomplete
 - Task text = note basename, or first heading after frontmatter if present
 - Frontmatter `tags` (array or comma string) are extracted for sidebar tag filtering
 
 **Inline Tasks** (lines `- [ ] ...` / `- [x] ...`):
+
 - Obsidian syntax: `📅 YYYY-MM-DD`, `due::`, `scheduled::`, `starts::` (formats: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`)
 - Reminder-plugin syntax (issue #96, gated by `reminderSyntaxEnabled`): `@YYYY-MM-DD HH:MM` (bare, requires time) and `(@YYYY-MM-DD HH:MM)` / `(@YYYY-MM-DD)` (parenthesized) → datetime; `(@YYYY-MM-DD)` → date-only
 - Kanban-plugin syntax (issue #97, gated by `kanbanSyntaxEnabled`): `@YYYY-MM-DD @@HH:MM` → datetime; `@YYYY-MM-DD` (not followed by `@@`) → date-only
@@ -21,46 +23,46 @@ Obsidian plugin that sends Telegram notifications for due/overdue tasks.
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `src/main.ts` | Plugin lifecycle, commands, status bar, periodic checking, at-time scheduler wiring, sidebar toggle |
-| `src/settings.ts` | Settings interface + defaults, pure validators, UI tab (`ReminderTelegramSettingTab`) with dual renderer: `getSettingDefinitions()` (Obsidian ≥ 1.13) + legacy `display()` fallback (< 1.13, minAppVersion 1.7.2), live template preview |
-| `src/checker.ts` | `checkDeadlines()`, `checkAndNotify()`, at-time dispatch (`dispatchAtTimeReminders`, `dueAtTimeTasks`), notification-state load/save/prune |
-| `src/tasks.ts` | `VaultTask`, `Deadline`, `Recurrence`, `scanVaultForTasks()`, `parseTaskLine()`, `parseFrontmatterTasksFromCache()`, filtering helpers, notification keys, recurrence computation (`computeNextOccurrence`, `buildNextOccurrenceLine`, `computeCompletionReschedules`, `applyRescheduleEdits`) |
-| `src/task-index.ts` | `TaskIndex` — incremental in-memory index (full scan on load, vault-event updates afterward) |
-| `src/scheduler.ts` | `AtTimeScheduler` — `setTimeout` wake timer for the next at-time deadline (purely a timer; dispatch is the caller's `onWake` callback) |
-| `src/sidebar-filter.ts` | Pure categorization/filtering for the sidebar: `categorizeTasks()`, time-scope + tag filters, `formatRelativeDate()` |
-| `src/sidebar-view.ts` | `ReminderTelegramSidebarView` — right-sidebar `ItemView` (Overdue / Due Today / Upcoming) |
-| `src/telegram.ts` | `sendTelegramMessage()`, `sendTaskReminder()`, `sendBulkReminders()`, `sendTestNotification()` |
-| `src/utils.ts` | `sanitizeErrorMessage()`, `maskSensitiveInfo()`, `getSanitizedSettingsForLogging()` |
+| File                    | Purpose                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.ts`           | Plugin lifecycle, commands, status bar, periodic checking, at-time scheduler wiring, sidebar toggle                                                                                                                                                                                            |
+| `src/settings.ts`       | Settings interface + defaults, pure validators, UI tab (`ReminderTelegramSettingTab`) with dual renderer: `getSettingDefinitions()` (Obsidian ≥ 1.13) + legacy `display()` fallback (< 1.13, minAppVersion 1.7.2), live template preview                                                       |
+| `src/checker.ts`        | `checkDeadlines()`, `checkAndNotify()`, at-time dispatch (`dispatchAtTimeReminders`, `dueAtTimeTasks`), notification-state load/save/prune                                                                                                                                                     |
+| `src/tasks.ts`          | `VaultTask`, `Deadline`, `Recurrence`, `scanVaultForTasks()`, `parseTaskLine()`, `parseFrontmatterTasksFromCache()`, filtering helpers, notification keys, recurrence computation (`computeNextOccurrence`, `buildNextOccurrenceLine`, `computeCompletionReschedules`, `applyRescheduleEdits`) |
+| `src/task-index.ts`     | `TaskIndex` — incremental in-memory index (full scan on load, vault-event updates afterward)                                                                                                                                                                                                   |
+| `src/scheduler.ts`      | `AtTimeScheduler` — `setTimeout` wake timer for the next at-time deadline (purely a timer; dispatch is the caller's `onWake` callback)                                                                                                                                                         |
+| `src/sidebar-filter.ts` | Pure categorization/filtering for the sidebar: `categorizeTasks()`, time-scope + tag filters, `formatRelativeDate()`                                                                                                                                                                           |
+| `src/sidebar-view.ts`   | `ReminderTelegramSidebarView` — right-sidebar `ItemView` (Overdue / Due Today / Upcoming)                                                                                                                                                                                                      |
+| `src/telegram.ts`       | `sendTelegramMessage()`, `sendTaskReminder()`, `sendBulkReminders()`, `sendTestNotification()`                                                                                                                                                                                                 |
+| `src/utils.ts`          | `sanitizeErrorMessage()`, `maskSensitiveInfo()`, `getSanitizedSettingsForLogging()`                                                                                                                                                                                                            |
 
 ## Settings
 
 ```typescript
 interface ReminderTelegramSettings {
-    telegramBotToken: string;           // @BotFather
-    telegramChatId: string;             // @userinfobot
-    notificationsEnabled: boolean;     // default: true
-    checkIntervalMinutes: number;       // default: 30
-    scanMode: 'whole-vault' | 'specific-folder';
-    targetFolder: string;
-    bulkMessageTemplate: string;        // {count}, {tasks}
-    individualMessageTemplate: string;  // {taskName}, {fileName}, {deadline}, {filePath}, {taskId}
-    testMessageTemplate: string;
-    useMarkdownFormatting: boolean;     // default: false
-    maxTasksPerCheck: number;           // default: 10 (min 1)
-    upcomingRemindersDaysAhead: number; // default: 1 (0 disables)
-    upcomingRemindersEnabled: boolean;  // default: true
-    upcomingMessageTemplate: string;    // individual upcoming
-    upcomingBulkMessageTemplate: string;
-    livePreviewEnabled: boolean;        // default: true
-    atTimeNotificationsEnabled: boolean;// default: true
-    leadTimeMinutes: number;            // default: 0 (sharp); max 1440
-    atTimeCatchUpWindowMinutes: number; // default: 60; max 10080; general catch-up window (issue #99)
-    strictTimeMode: boolean;            // default: false
-    reminderSyntaxEnabled: boolean;     // default: true
-    kanbanSyntaxEnabled: boolean;       // default: true
-  recurringTasksEnabled: boolean;     // default: true (issue #98)
+	telegramBotToken: string; // @BotFather
+	telegramChatId: string; // @userinfobot
+	notificationsEnabled: boolean; // default: true
+	checkIntervalMinutes: number; // default: 30
+	scanMode: 'whole-vault' | 'specific-folder';
+	targetFolder: string;
+	bulkMessageTemplate: string; // {count}, {tasks}
+	individualMessageTemplate: string; // {taskName}, {fileName}, {deadline}, {filePath}, {taskId}
+	testMessageTemplate: string;
+	useMarkdownFormatting: boolean; // default: false
+	maxTasksPerCheck: number; // default: 10 (min 1)
+	upcomingRemindersDaysAhead: number; // default: 1 (0 disables)
+	upcomingRemindersEnabled: boolean; // default: true
+	upcomingMessageTemplate: string; // individual upcoming
+	upcomingBulkMessageTemplate: string;
+	livePreviewEnabled: boolean; // default: true
+	atTimeNotificationsEnabled: boolean; // default: true
+	leadTimeMinutes: number; // default: 0 (sharp); max 1440
+	atTimeCatchUpWindowMinutes: number; // default: 60; max 10080; general catch-up window (issue #99)
+	strictTimeMode: boolean; // default: false
+	reminderSyntaxEnabled: boolean; // default: true
+	kanbanSyntaxEnabled: boolean; // default: true
+	recurringTasksEnabled: boolean; // default: true (issue #98)
 }
 ```
 
@@ -80,15 +82,16 @@ Single-context layout — one `CONTEXT.md` at repo root. See `.ai/domain.md`. (N
 
 ## Commands
 
-| ID | Name |
-|----|------|
-| `check-reminders` | Check reminders now |
-| `test-telegram-notification` | Send test Telegram notification |
-| `toggle-sidebar` | Toggle sidebar (also on the bell ribbon icon) |
+| ID                           | Name                                          |
+| ---------------------------- | --------------------------------------------- |
+| `check-reminders`            | Check reminders now                           |
+| `test-telegram-notification` | Send test Telegram notification               |
+| `toggle-sidebar`             | Toggle sidebar (also on the bell ribbon icon) |
 
 ## Notification Flow
 
 ### Periodic / manual checks (`checkAndNotify`)
+
 ```
 manualCheck() / periodic interval → taskIndex.getAllTasks()
     ↓
@@ -104,6 +107,7 @@ bulk (if >1 and sendBulk) or individual send → markAsNotified() → saveSettin
 ```
 
 ### At-time pipeline (issue #89)
+
 ```
 armAtTimeScheduler() → AtTimeScheduler.arm(tasks, leadTime, catchUpWindow, notifiedAtTimeInstances)
     ↓ fires at next (deadline − leadTime)
@@ -111,25 +115,44 @@ handleAtTimeWake() → dispatchAtTimeReminders()
     ↓ dueAtTimeTasks(): fires in [now − catchUpWindow, now], dedup by notifiedAtTimeInstances
 sendTaskReminder() each → markAtTimeInstanceNotified() → rearm() in finally
 ```
+
 - Rearms are debounced (200 ms) on vault create/modify/delete + metadataCache resolve + `window-open` + `visibilitychange` (wake-from-sleep)
 - `strictTimeMode` gates at-time tasks out of periodic checks (default off → periodic check is a safety net)
 - Catch-up: on next app open, fires whose `scheduledFire` is within `atTimeCatchUpWindowMinutes` still go out
-- `leadTimeMinutes` fires *before* the deadline; `delayedByMinutes` is rendered as a `(delayed Xm)` suffix when late
+- `leadTimeMinutes` fires _before_ the deadline; `delayedByMinutes` is rendered as a `(delayed Xm)` suffix when late
 
 ## Notification State
 
 ```typescript
 interface NotificationState {
-    notifiedTasks: Record<string, number>;          // key: notified:${task.id}:${deadlineDate} → timestamp
-    notifiedAtTimeInstances: Record<string, number>;// key: taskId → scheduledFire (ms); rescheduling a task allows it to fire again
-    lastCheck: number;
+	notifiedTasks: Record<string, number>; // key: notified:${task.id}:${deadlineDate} → timestamp
+	notifiedAtTimeInstances: Record<string, number>; // key: taskId → scheduledFire (ms); rescheduling a task allows it to fire again
+	lastCheck: number;
 }
 ```
+
 Persisted inside plugin data (alongside settings) via `saveNotificationState()`. Pruned on every check: 30-day age window; `notifiedTasks` capped at 1000 most recent entries.
 
 **Notification Keys**:
+
 - Date-only/periodic: `notified:${task.id}:${deadlineDate}`
 - At-time: `notifiedAtTimeInstances[${task.id}] = ${scheduledFire ms}`
+
+## Feedback Loops & Verification Workflow
+
+Agents must verify their own work before declaring it done (feedback loops per [aihero.dev](https://www.aihero.dev/essential-ai-coding-feedback-loops-for-type-script-projects)). After any code change, run the checks in this order and fix failures before finishing:
+
+```bash
+npm run lint        # ESLint (obsidianmd + typescript-eslint)
+npm run typecheck   # tsc -noEmit
+npm test            # vitest run (400 tests, ~2s)
+```
+
+When touching UI (settings tab / sidebar), also run `npm run build` and load the plugin in Obsidian if possible. Don't rely on tests alone — typecheck and lint catch what tests don't.
+
+**Pre-commit hook (Husky)**: every commit runs `lint-staged` (Prettier + `eslint --fix` on staged files) → `typecheck` → `test`. A failing check blocks the commit; read the error and fix it, then re-commit. `main.js` and other generated files are excluded via `.prettierignore`.
+
+**Formatting**: Prettier (`.prettierrc.json`: tabs, width 4, single quotes — matches `.editorconfig`). Never hand-align formatting; let `npx prettier --write <file>` do it.
 
 ## Build
 
@@ -138,6 +161,7 @@ npm install
 npm run dev          # watch mode
 npm run build        # tsc -noEmit && esbuild production
 npm run lint         # eslint
+npm run typecheck    # tsc -noEmit only (fast, no bundle)
 npm test             # vitest run (jsdom, obsidian mocked via __mocks__)
 npm run test:watch
 npm run test:coverage
@@ -150,46 +174,47 @@ npm version patch    # bump version (triggers version-bump.mjs)
 ## Interfaces
 
 ```typescript
-type Deadline = { type: 'date-only'; year: number; month: number; day: number }
-              | { type: 'datetime'; date: Date };
+type Deadline =
+	| { type: 'date-only'; year: number; month: number; day: number }
+	| { type: 'datetime'; date: Date };
 
 interface VaultTask {
-    id: string;                 // stable: inline:${filePath}:${deadlineDate}:${contentHash} | frontmatter:${filePath}:${deadlineDate}
-    text: string;               // task text (inline) or basename/first heading (frontmatter)
-    filePath: string;
-    fileName: string;
-    lineNumber: number;         // 1-based, 0 for frontmatter
-    completed: boolean;
-    deadline: Deadline | null;
-    deadlineString: string | null;
-    timeString: string | null;  // "HH:MM" for datetime; null otherwise
-    isAtTime: boolean;          // deadline.type === 'datetime'
-    originalLine: string;
-    source: 'inline' | 'frontmatter';
-    tags: string[];             // frontmatter tags only
-    headingLineNumber?: number; // first heading line (frontmatter, for scroll-to)
+	id: string; // stable: inline:${filePath}:${deadlineDate}:${contentHash} | frontmatter:${filePath}:${deadlineDate}
+	text: string; // task text (inline) or basename/first heading (frontmatter)
+	filePath: string;
+	fileName: string;
+	lineNumber: number; // 1-based, 0 for frontmatter
+	completed: boolean;
+	deadline: Deadline | null;
+	deadlineString: string | null;
+	timeString: string | null; // "HH:MM" for datetime; null otherwise
+	isAtTime: boolean; // deadline.type === 'datetime'
+	originalLine: string;
+	source: 'inline' | 'frontmatter';
+	tags: string[]; // frontmatter tags only
+	headingLineNumber?: number; // first heading line (frontmatter, for scroll-to)
 }
 
 interface ScanSettings {
-    scanMode: 'whole-vault' | 'specific-folder';
-    targetFolder: string;
-    reminderSyntaxEnabled?: boolean; // default true
-    kanbanSyntaxEnabled?: boolean;   // default true
+	scanMode: 'whole-vault' | 'specific-folder';
+	targetFolder: string;
+	reminderSyntaxEnabled?: boolean; // default true
+	kanbanSyntaxEnabled?: boolean; // default true
 }
 
 interface TelegramSendResult {
-    success: boolean;
-    message?: string;
-    error?: string;
+	success: boolean;
+	message?: string;
+	error?: string;
 }
 
 interface TelegramTaskTemplateFields {
-    taskName: string;
-    fileName: string;
-    deadline: string;
-    filePath: string;
-    taskId: string;
-    delayedByMinutes?: number | null; // at-time only; renders "(delayed Xm)"
+	taskName: string;
+	fileName: string;
+	deadline: string;
+	filePath: string;
+	taskId: string;
+	delayedByMinutes?: number | null; // at-time only; renders "(delayed Xm)"
 }
 ```
 
@@ -212,15 +237,17 @@ interface TelegramTaskTemplateFields {
 **Add setting**: Interface → DEFAULT_SETTINGS → `ReminderTelegramSettingTab.buildDefinitions()` — add a key-bound `control` item for simple controls (toggles/dropdown/text) or a `render` definition for custom rows (sidebar: password inputs, numeric coercion via pure validators, template textareas with chips/counter). `setControlValue()` persists and applies side effects; it is shared by the 1.13+ framework binding and the legacy renderer.
 
 **Add command**:
+
 ```typescript
 this.addCommand({
-    id: 'command-id',
-    name: 'Command Name',
-    callback: () => new Notice('Done')
+	id: 'command-id',
+	name: 'Command Name',
+	callback: () => new Notice('Done'),
 });
 ```
 
 **Register cleanup**:
+
 ```typescript
 this.registerInterval(window.setInterval(fn, ms));
 this.registerEvent(this.app.workspace.on('event', handler));
@@ -230,13 +257,13 @@ this.registerEvent(this.app.workspace.on('event', handler));
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| No load | Check `main.js` exists, run `npm run build` |
-| No notifications | Verify token, chat ID, enabled in settings |
-| At-time tasks never fire | Check `atTimeNotificationsEnabled`, `leadTimeMinutes`/`catchUpWindow` vs. actual delay |
-| Duplicates | Clear plugin data, check state persistence (`notifiedTasks` / `notifiedAtTimeInstances`) |
-| Build errors | `npm install`, `npm run build` (runs `tsc --noEmit`) |
+| Issue                    | Fix                                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| No load                  | Check `main.js` exists, run `npm run build`                                              |
+| No notifications         | Verify token, chat ID, enabled in settings                                               |
+| At-time tasks never fire | Check `atTimeNotificationsEnabled`, `leadTimeMinutes`/`catchUpWindow` vs. actual delay   |
+| Duplicates               | Clear plugin data, check state persistence (`notifiedTasks` / `notifiedAtTimeInstances`) |
+| Build errors             | `npm install`, `npm run build` (runs `tsc --noEmit`)                                     |
 
 ## Links
 
@@ -245,6 +272,7 @@ this.registerEvent(this.app.workspace.on('event', handler));
 - [Telegram Bot API](https://core.telegram.org/bots/api)
 
 ---
+
 - **ID**: `reminder-telegram`
 - **Version**: 1.0.8
 - **Min App**: 1.7.2

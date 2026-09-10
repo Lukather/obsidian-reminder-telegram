@@ -18,7 +18,7 @@
  * and lets the plugin own the side effects.
  */
 
-import type {VaultTask} from './tasks';
+import type { VaultTask } from './tasks';
 
 /**
  * Callback invoked when the wake timer fires. The callback is
@@ -59,19 +59,25 @@ export class AtTimeScheduler {
 		leadTimeMinutes: number,
 		catchUpWindowMinutes: number,
 		notifiedInstances: Record<string, number> = {},
-		now: Date = new Date()
+		now: Date = new Date(),
 	): void {
 		this.cancel();
 
 		// No at-time tasks → no wake needed. Leave wakeTimer null and
 		// nextFire null so getNextFire() reflects the idle state.
-		const candidates = this.filterCandidates(tasks, leadTimeMinutes, catchUpWindowMinutes, notifiedInstances, now);
+		const candidates = this.filterCandidates(
+			tasks,
+			leadTimeMinutes,
+			catchUpWindowMinutes,
+			notifiedInstances,
+			now,
+		);
 		if (candidates.length === 0) return;
 
 		// Earliest scheduled fire wins.
 		const earliest = candidates.reduce(
 			(min, t) => (t.scheduledFire < min.scheduledFire ? t : min),
-			candidates[0]!
+			candidates[0]!,
 		);
 
 		// If the earliest candidate is in the catch-up window, fire
@@ -79,9 +85,10 @@ export class AtTimeScheduler {
 		// (rather than a bare microtask) means the fire is observable
 		// to test harnesses that drive timers with
 		// `vi.advanceTimersByTimeAsync` / `vi.runAllTimersAsync`.
-		const delayMs = earliest.scheduledFire <= now.getTime()
-			? 0
-			: earliest.scheduledFire - now.getTime();
+		const delayMs =
+			earliest.scheduledFire <= now.getTime()
+				? 0
+				: earliest.scheduledFire - now.getTime();
 
 		this.nextFire = new Date(earliest.scheduledFire);
 		this.wakeTimer = window.setTimeout(() => {
@@ -101,9 +108,15 @@ export class AtTimeScheduler {
 		leadTimeMinutes: number,
 		catchUpWindowMinutes: number,
 		notifiedInstances: Record<string, number> = {},
-		now: Date = new Date()
+		now: Date = new Date(),
 	): void {
-		this.arm(tasks, leadTimeMinutes, catchUpWindowMinutes, notifiedInstances, now);
+		this.arm(
+			tasks,
+			leadTimeMinutes,
+			catchUpWindowMinutes,
+			notifiedInstances,
+			now,
+		);
 	}
 
 	/** Cancel any pending wake timer. Safe to call when no timer is set. */
@@ -149,12 +162,12 @@ export class AtTimeScheduler {
 		leadTimeMinutes: number,
 		catchUpWindowMinutes: number,
 		notifiedInstances: Record<string, number>,
-		now: Date
-	): Array<{scheduledFire: number}> {
+		now: Date,
+	): Array<{ scheduledFire: number }> {
 		const nowMs = now.getTime();
 		const leadMs = leadTimeMinutes * 60 * 1000;
 		const catchUpMs = catchUpWindowMinutes * 60 * 1000;
-		const result: Array<{scheduledFire: number}> = [];
+		const result: Array<{ scheduledFire: number }> = [];
 
 		for (const task of tasks) {
 			if (task.completed) continue;
@@ -167,7 +180,7 @@ export class AtTimeScheduler {
 			// Skip if already notified at exactly this scheduledFire.
 			if (notifiedInstances[task.id] === scheduledFire) continue;
 
-			result.push({scheduledFire});
+			result.push({ scheduledFire });
 		}
 
 		return result;

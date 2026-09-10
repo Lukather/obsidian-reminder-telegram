@@ -1,7 +1,21 @@
-import {Notice} from 'obsidian';
-import {VaultTask, getDueTasks, getUpcomingTasks, getTaskNotificationKey, filterDueTasksByCheckFlags, filterOverdueByCatchUpWindow, deadlineToDateString} from './tasks';
-import {sendBulkReminders, sendTaskReminder, sendTestNotification as telegramSendTestNotification, TelegramSendResult, TelegramTaskTemplateFields} from './telegram';
-import {sanitizeErrorMessage} from './utils';
+import { Notice } from 'obsidian';
+import {
+	VaultTask,
+	getDueTasks,
+	getUpcomingTasks,
+	getTaskNotificationKey,
+	filterDueTasksByCheckFlags,
+	filterOverdueByCatchUpWindow,
+	deadlineToDateString,
+} from './tasks';
+import {
+	sendBulkReminders,
+	sendTaskReminder,
+	sendTestNotification as telegramSendTestNotification,
+	TelegramSendResult,
+	TelegramTaskTemplateFields,
+} from './telegram';
+import { sanitizeErrorMessage } from './utils';
 
 export interface NotificationState {
 	notifiedTasks: Record<string, number>;
@@ -19,7 +33,7 @@ export interface NotificationState {
 export const DEFAULT_NOTIFICATION_STATE: NotificationState = {
 	notifiedTasks: {},
 	notifiedAtTimeInstances: {},
-	lastCheck: 0
+	lastCheck: 0,
 };
 
 export interface CheckDeadlinesOptions {
@@ -51,7 +65,7 @@ const DEFAULT_CHECK_OPTIONS: CheckDeadlinesOptions = {
 	sendBulk: true,
 	maxTasks: 10,
 	strictTimeMode: false,
-	catchUpWindowMinutes: 0
+	catchUpWindowMinutes: 0,
 };
 
 interface PersistedNotificationState {
@@ -66,7 +80,7 @@ export function loadNotificationState(data: unknown): NotificationState {
 		return {
 			notifiedTasks: persisted.notifiedTasks || {},
 			notifiedAtTimeInstances: persisted.notifiedAtTimeInstances || {},
-			lastCheck: persisted.lastCheck || 0
+			lastCheck: persisted.lastCheck || 0,
 		};
 	}
 	// Return a FRESH copy so callers can mutate the maps without
@@ -75,15 +89,17 @@ export function loadNotificationState(data: unknown): NotificationState {
 	return {
 		notifiedTasks: {},
 		notifiedAtTimeInstances: {},
-		lastCheck: 0
+		lastCheck: 0,
 	};
 }
 
-export function saveNotificationState(state: NotificationState): PersistedNotificationState {
+export function saveNotificationState(
+	state: NotificationState,
+): PersistedNotificationState {
 	return {
 		notifiedTasks: state.notifiedTasks,
 		notifiedAtTimeInstances: state.notifiedAtTimeInstances,
-		lastCheck: state.lastCheck
+		lastCheck: state.lastCheck,
 	};
 }
 
@@ -98,7 +114,10 @@ function markAsNotified(task: VaultTask, state: NotificationState): void {
 	state.lastCheck = Date.now();
 }
 
-export function clearTaskNotification(task: VaultTask, state: NotificationState): void {
+export function clearTaskNotification(
+	task: VaultTask,
+	state: NotificationState,
+): void {
 	const key = getTaskNotificationKey(task);
 	delete state.notifiedTasks[key];
 }
@@ -107,7 +126,7 @@ export function pruneNotificationState(state: NotificationState): void {
 	// Age-based prune always runs, regardless of count.
 	// 30-day window is wide enough that catch-up still works after a long
 	// weekend away, while keeping the state file from growing unbounded.
-	const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+	const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
 	// --- notifiedTasks (date-only / catch-all keys) ---
 	const recentEntries: Array<[string, number]> = [];
@@ -132,7 +151,8 @@ export function pruneNotificationState(state: NotificationState): void {
 	// the 1000-cap doesn't apply — age-pruning alone is enough.
 	const prunedAtTime: Record<string, number> = {};
 	for (const key of Object.keys(state.notifiedAtTimeInstances)) {
-		const timestamp: number | undefined = state.notifiedAtTimeInstances[key];
+		const timestamp: number | undefined =
+			state.notifiedAtTimeInstances[key];
 		if (timestamp !== undefined && timestamp >= thirtyDaysAgo) {
 			prunedAtTime[key] = timestamp;
 		}
@@ -166,7 +186,7 @@ export function computeNextAtTimeFire(
 	tasks: VaultTask[],
 	now: Date,
 	leadTimeMin: number,
-	notifiedInstances: Record<string, number> = {}
+	notifiedInstances: Record<string, number> = {},
 ): Date | null {
 	const nowMs = now.getTime();
 	const leadMs = leadTimeMin * 60 * 1000;
@@ -208,7 +228,7 @@ export function dueAtTimeTasks(
 	now: Date,
 	catchUpWindowMin: number,
 	leadTimeMin: number,
-	notifiedInstances: Record<string, number> = {}
+	notifiedInstances: Record<string, number> = {},
 ): AtTimeFire[] {
 	const nowMs = now.getTime();
 	const leadMs = leadTimeMin * 60 * 1000;
@@ -232,7 +252,7 @@ export function dueAtTimeTasks(
 		fires.push({
 			task,
 			scheduledFire,
-			delayedByMinutes: Math.floor(delayedByMs / 60000)
+			delayedByMinutes: Math.floor(delayedByMs / 60000),
 		});
 	}
 
@@ -249,7 +269,7 @@ export function dueAtTimeTasks(
 export function markAtTimeInstanceNotified(
 	task: VaultTask,
 	scheduledFor: number,
-	state: NotificationState
+	state: NotificationState,
 ): void {
 	state.notifiedAtTimeInstances[task.id] = scheduledFor;
 	state.lastCheck = Date.now();
@@ -259,9 +279,12 @@ function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
 	return {
 		taskName: task.text,
 		fileName: task.fileName,
-		deadline: task.deadlineString || deadlineToDateString(task.deadline) || 'Unknown',
+		deadline:
+			task.deadlineString ||
+			deadlineToDateString(task.deadline) ||
+			'Unknown',
 		filePath: task.filePath,
-		taskId: task.id
+		taskId: task.id,
 	};
 }
 
@@ -271,18 +294,24 @@ function formatTaskForTelegram(task: VaultTask): TelegramTaskTemplateFields {
  * the `delayedByMinutes` value (so the rendered line gets a `(delayed Xm)`
  * suffix) and uses the precise ISO deadline string when available.
  */
-export function formatAtTimeFireForTelegram(fire: AtTimeFire): TelegramTaskTemplateFields {
+export function formatAtTimeFireForTelegram(
+	fire: AtTimeFire,
+): TelegramTaskTemplateFields {
 	const task = fire.task;
-	const deadline = task.deadline && task.deadline.type === 'datetime'
-		? task.deadline.date.toISOString()
-		: task.deadlineString || deadlineToDateString(task.deadline) || 'Unknown';
+	const deadline =
+		task.deadline && task.deadline.type === 'datetime'
+			? task.deadline.date.toISOString()
+			: task.deadlineString ||
+				deadlineToDateString(task.deadline) ||
+				'Unknown';
 	return {
 		taskName: task.text,
 		fileName: task.fileName,
 		deadline,
 		filePath: task.filePath,
 		taskId: task.id,
-		delayedByMinutes: fire.delayedByMinutes > 0 ? fire.delayedByMinutes : null
+		delayedByMinutes:
+			fire.delayedByMinutes > 0 ? fire.delayedByMinutes : null,
 	};
 }
 
@@ -308,14 +337,21 @@ export async function dispatchAtTimeReminders(
 	now: Date,
 	catchUpWindowMin: number,
 	leadTimeMin: number,
-	options: DispatchAtTimeOptions
+	options: DispatchAtTimeOptions,
 ): Promise<{
 	fires: AtTimeFire[];
 	sendResults: TelegramSendResult[];
 	state: NotificationState;
 }> {
-	const {botToken, chatId, state, individualTemplate, useMarkdown} = options;
-	const fires = dueAtTimeTasks(tasks, now, catchUpWindowMin, leadTimeMin, state.notifiedAtTimeInstances);
+	const { botToken, chatId, state, individualTemplate, useMarkdown } =
+		options;
+	const fires = dueAtTimeTasks(
+		tasks,
+		now,
+		catchUpWindowMin,
+		leadTimeMin,
+		state.notifiedAtTimeInstances,
+	);
 	const sendResults: TelegramSendResult[] = [];
 
 	for (const fire of fires) {
@@ -330,7 +366,7 @@ export async function dispatchAtTimeReminders(
 			useMarkdown,
 			fields.filePath,
 			fields.taskId,
-			fields.delayedByMinutes
+			fields.delayedByMinutes,
 		);
 		sendResults.push(result);
 
@@ -339,7 +375,7 @@ export async function dispatchAtTimeReminders(
 		} else {
 			console.error(
 				`Failed to send at-time notification for task ${fire.task.id}:`,
-				sanitizeErrorMessage(String(result.error), botToken, chatId)
+				sanitizeErrorMessage(String(result.error), botToken, chatId),
 			);
 		}
 	}
@@ -347,7 +383,7 @@ export async function dispatchAtTimeReminders(
 	// Prune the at-time ledger alongside the date-only one.
 	pruneNotificationState(state);
 
-	return {fires, sendResults, state};
+	return { fires, sendResults, state };
 }
 
 /**
@@ -364,7 +400,7 @@ export async function checkAndNotify(
 	testTemplate?: string,
 	useMarkdown?: boolean,
 	upcomingBulkTemplate?: string,
-	upcomingIndividualTemplate?: string
+	upcomingIndividualTemplate?: string,
 ): Promise<{
 	totalTasks: number;
 	dueTasks: number;
@@ -373,8 +409,11 @@ export async function checkAndNotify(
 	sendResults: TelegramSendResult[];
 	state: NotificationState;
 }> {
-	const merged = {...DEFAULT_CHECK_OPTIONS, ...options};
-	const opts: CheckDeadlinesOptions = {...merged, maxTasks: Math.max(1, merged.maxTasks)};
+	const merged = { ...DEFAULT_CHECK_OPTIONS, ...options };
+	const opts: CheckDeadlinesOptions = {
+		...merged,
+		maxTasks: Math.max(1, merged.maxTasks),
+	};
 	const sendResults: TelegramSendResult[] = [];
 	let notifiedTasksCount = 0;
 
@@ -385,7 +424,7 @@ export async function checkAndNotify(
 		baseDueTasks,
 		today,
 		opts.checkToday,
-		opts.checkOverdue
+		opts.checkOverdue,
 	);
 
 	// Catch-up for the PC-off gap (issue #99): overdue tasks only notify
@@ -395,22 +434,32 @@ export async function checkAndNotify(
 	const windowedDueTasks = filterOverdueByCatchUpWindow(
 		dueTasks,
 		today,
-		opts.catchUpWindowMinutes ?? 0
+		opts.catchUpWindowMinutes ?? 0,
 	);
 
 	// In strict mode the at-time scheduler owns datetime tasks; strip
 	// them from the periodic check so we don't double-notify.
 	const eligibleDueTasks = opts.strictTimeMode
-		? windowedDueTasks.filter(task => !task.deadline || task.deadline.type !== 'datetime')
+		? windowedDueTasks.filter(
+				(task) => !task.deadline || task.deadline.type !== 'datetime',
+			)
 		: windowedDueTasks;
 
-	const tasksToNotify = eligibleDueTasks.filter(task => !isAlreadyNotified(task, state));
+	const tasksToNotify = eligibleDueTasks.filter(
+		(task) => !isAlreadyNotified(task, state),
+	);
 
-	const upcomingToNotify = opts.daysAhead > 0
-		? getUpcomingTasks(allTasks, today, opts.daysAhead)
-			.filter(task => !isAlreadyNotified(task, state))
-			.filter(task => !opts.strictTimeMode || !task.deadline || task.deadline.type !== 'datetime')
-		: [];
+	const upcomingToNotify =
+		opts.daysAhead > 0
+			? getUpcomingTasks(allTasks, today, opts.daysAhead)
+					.filter((task) => !isAlreadyNotified(task, state))
+					.filter(
+						(task) =>
+							!opts.strictTimeMode ||
+							!task.deadline ||
+							task.deadline.type !== 'datetime',
+					)
+			: [];
 
 	if (tasksToNotify.length === 0 && upcomingToNotify.length === 0) {
 		state.lastCheck = Date.now();
@@ -421,7 +470,7 @@ export async function checkAndNotify(
 			upcomingTasks: 0,
 			notifiedTasks: 0,
 			sendResults,
-			state
+			state,
 		};
 	}
 
@@ -438,7 +487,7 @@ export async function checkAndNotify(
 				formattedTasks,
 				bulkTemplate,
 				individualTemplate,
-				useMarkdown
+				useMarkdown,
 			);
 			sendResults.push(result);
 
@@ -460,7 +509,7 @@ export async function checkAndNotify(
 					individualTemplate,
 					useMarkdown,
 					formattedTask.filePath,
-					formattedTask.taskId
+					formattedTask.taskId,
 				);
 				sendResults.push(result);
 
@@ -468,30 +517,38 @@ export async function checkAndNotify(
 					markAsNotified(task, state);
 					notifiedTasksCount++;
 				} else {
-					console.error(`Failed to send notification for task ${task.id}:`, sanitizeErrorMessage(
-						String(result.error),
-						botToken,
-						chatId
-					));
+					console.error(
+						`Failed to send notification for task ${task.id}:`,
+						sanitizeErrorMessage(
+							String(result.error),
+							botToken,
+							chatId,
+						),
+					);
 				}
 			}
 		}
 	}
 
 	// --- Send upcoming tasks using upcoming-specific templates ---
-	const upcomingLimitedTasks = upcomingToNotify.slice(0, Math.max(0, opts.maxTasks - dueLimitedTasks.length));
+	const upcomingLimitedTasks = upcomingToNotify.slice(
+		0,
+		Math.max(0, opts.maxTasks - dueLimitedTasks.length),
+	);
 	const useUpcomingBulk = opts.sendBulk && upcomingLimitedTasks.length > 1;
 
 	if (upcomingLimitedTasks.length > 0) {
 		if (useUpcomingBulk) {
-			const formattedTasks = upcomingLimitedTasks.map(formatTaskForTelegram);
+			const formattedTasks = upcomingLimitedTasks.map(
+				formatTaskForTelegram,
+			);
 			const result = await sendBulkReminders(
 				botToken,
 				chatId,
 				formattedTasks,
 				upcomingBulkTemplate,
 				upcomingIndividualTemplate,
-				useMarkdown
+				useMarkdown,
 			);
 			sendResults.push(result);
 
@@ -513,7 +570,7 @@ export async function checkAndNotify(
 					upcomingIndividualTemplate,
 					useMarkdown,
 					formattedTask.filePath,
-					formattedTask.taskId
+					formattedTask.taskId,
 				);
 				sendResults.push(result);
 
@@ -521,11 +578,14 @@ export async function checkAndNotify(
 					markAsNotified(task, state);
 					notifiedTasksCount++;
 				} else {
-					console.error(`Failed to send upcoming notification for task ${task.id}:`, sanitizeErrorMessage(
-						String(result.error),
-						botToken,
-						chatId
-					));
+					console.error(
+						`Failed to send upcoming notification for task ${task.id}:`,
+						sanitizeErrorMessage(
+							String(result.error),
+							botToken,
+							chatId,
+						),
+					);
 				}
 			}
 		}
@@ -539,7 +599,7 @@ export async function checkAndNotify(
 		upcomingTasks: upcomingLimitedTasks.length,
 		notifiedTasks: notifiedTasksCount,
 		sendResults,
-		state
+		state,
 	};
 }
 
@@ -553,15 +613,27 @@ export async function checkDeadlines(
 	useMarkdown?: boolean,
 	checkOptions?: Partial<CheckDeadlinesOptions>,
 	upcomingBulkTemplate?: string,
-	upcomingIndividualTemplate?: string
+	upcomingIndividualTemplate?: string,
 ): Promise<NotificationState> {
 	try {
-		const result = await checkAndNotify(allTasks, botToken, chatId, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			...checkOptions
-		}, bulkTemplate, individualTemplate, undefined, useMarkdown, upcomingBulkTemplate, upcomingIndividualTemplate);
+		const result = await checkAndNotify(
+			allTasks,
+			botToken,
+			chatId,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				...checkOptions,
+			},
+			bulkTemplate,
+			individualTemplate,
+			undefined,
+			useMarkdown,
+			upcomingBulkTemplate,
+			upcomingIndividualTemplate,
+		);
 
 		if (result.notifiedTasks > 0) {
 			new Notice(`Sent ${result.notifiedTasks} reminder(s) to Telegram`);
@@ -569,11 +641,10 @@ export async function checkDeadlines(
 
 		return result.state;
 	} catch (error) {
-		console.error('Error checking deadlines:', sanitizeErrorMessage(
-			String(error),
-			botToken,
-			chatId
-		));
+		console.error(
+			'Error checking deadlines:',
+			sanitizeErrorMessage(String(error), botToken, chatId),
+		);
 		new Notice('Error checking deadlines. See console for details.');
 		return state;
 	}
@@ -586,7 +657,12 @@ export async function sendTestNotification(
 	botToken: string,
 	chatId: string,
 	template?: string,
-	useMarkdown?: boolean
+	useMarkdown?: boolean,
 ): Promise<TelegramSendResult> {
-	return telegramSendTestNotification(botToken, chatId, template, useMarkdown);
+	return telegramSendTestNotification(
+		botToken,
+		chatId,
+		template,
+		useMarkdown,
+	);
 }

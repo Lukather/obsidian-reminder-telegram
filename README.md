@@ -54,10 +54,11 @@ A note with a `scheduled` or `due` field and `---` delimiters becomes a task. Th
 status: open
 scheduled: 2024-12-25
 tags:
-  - task
+    - task
 ---
 
 # My Task
+
 Complete this task by Christmas
 ```
 
@@ -77,19 +78,19 @@ Accepted date formats: `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`, with optional t
 
 ### Exact-time syntax
 
-**Reminder-plugin `@` syntax** (toggle: *Reminder syntax*):
+**Reminder-plugin `@` syntax** (toggle: _Reminder syntax_):
 
 ```markdown
 - [ ] Call Grandma @2026-07-22 12:30
 - [ ] Call Grandma (@2026-07-22 12:30)
-- [ ] Buy milk (@2026-07-22)        # no time → date-only
+- [ ] Buy milk (@2026-07-22) # no time → date-only
 ```
 
-**Kanban-plugin syntax** (toggle: *Kanban syntax*):
+**Kanban-plugin syntax** (toggle: _Kanban syntax_):
 
 ```markdown
-- [ ] Call Grandma @2026-07-22 @@14:30   # date + time
-- [ ] Buy milk @2026-07-22                # no time → date-only
+- [ ] Call Grandma @2026-07-22 @@14:30 # date + time
+- [ ] Buy milk @2026-07-22 # no time → date-only
 ```
 
 Reminder syntax owns `@YYYY-MM-DD HH:MM`; Kanban owns `@YYYY-MM-DD @@HH:MM` and bare `@YYYY-MM-DD`.
@@ -108,27 +109,27 @@ Append `🔁 every …` to an inline task (works with any date syntax, including
 <details>
 <summary>Supported patterns</summary>
 
-| Pattern | Next occurrence |
-|---|---|
-| `🔁 every day` | +1 calendar day |
-| `🔁 every week` | +7 days |
-| `🔁 every week on Sunday` (any weekday, full or 3-letter name) | next matching weekday |
-| `🔁 every month` | same day next month (e.g. Jan 31 → Feb 28 → Mar 31) |
-| `🔁 every year` | same month/day next year (Feb 29 → Feb 28) |
+| Pattern                                                        | Next occurrence                                     |
+| -------------------------------------------------------------- | --------------------------------------------------- |
+| `🔁 every day`                                                 | +1 calendar day                                     |
+| `🔁 every week`                                                | +7 days                                             |
+| `🔁 every week on Sunday` (any weekday, full or 3-letter name) | next matching weekday                               |
+| `🔁 every month`                                               | same day next month (e.g. Jan 31 → Feb 28 → Mar 31) |
+| `🔁 every year`                                                | same month/day next year (Feb 29 → Feb 28)          |
 
 </details>
 
-When you complete a recurring task (`- [x]`), the plugin rewrites the line: the checkbox re-opens and the date advances to the next occurrence — task text and metadata are preserved. Overdue recurring tasks advance until the next occurrence is in the future. Toggle: *Recurring tasks* (default on).
+When you complete a recurring task (`- [x]`), the plugin rewrites the line: the checkbox re-opens and the date advances to the next occurrence — task text and metadata are preserved. Overdue recurring tasks advance until the next occurrence is in the future. Toggle: _Recurring tasks_ (default on).
 
 ## Notification behavior
 
 When do notifications go out:
 
-1. **Interval checks** — every *Check interval* minutes (default 30) and on manual triggers. Handles date-only tasks: due today, overdue, and upcoming.
+1. **Interval checks** — every _Check interval_ minutes (default 30) and on manual triggers. Handles date-only tasks: due today, overdue, and upcoming.
 2. **At-time scheduler** — datetime tasks fire at `deadline − lead time` via a precise timer, re-armed on vault changes, workspace changes, and app resume.
-3. **PC-off catch-up** — on the next check after the app re-opens, missed notifications fire *if* they fall within the catch-up window; anything older is silently dropped.
+3. **PC-off catch-up** — on the next check after the app re-opens, missed notifications fire _if_ they fall within the catch-up window; anything older is silently dropped.
 
-**Catch-up window** (*Catch-up window (minutes)*, default 60) applies to:
+**Catch-up window** (_Catch-up window (minutes)_, default 60) applies to:
 
 - at-time tasks: fires whose scheduled time is within the window
 - overdue tasks: deadline within the window (datetime tasks by exact timestamp; date-only tasks from the end of their day)
@@ -136,9 +137,9 @@ When do notifications go out:
 
 Tasks due today are never gated. A window of `0` disables the gate and past behavior applies (all overdue tasks are always notified).
 
-**Upcoming reminders** (*Upcoming reminders* + *Days ahead for upcoming*, default 1): tasks due in the next N days (tomorrow onward) get a heads-up with their own templates. Due/overdue notifications share the per-check budget (*Max tasks per check*).
+**Upcoming reminders** (_Upcoming reminders_ + _Days ahead for upcoming_, default 1): tasks due in the next N days (tomorrow onward) get a heads-up with their own templates. Due/overdue notifications share the per-check budget (_Max tasks per check_).
 
-**Strict time mode**: when enabled, datetime tasks are handled *only* by the at-time scheduler — interval checks skip them entirely (default off, so the interval stays as a safety net).
+**Strict time mode**: when enabled, datetime tasks are handled _only_ by the at-time scheduler — interval checks skip them entirely (default off, so the interval stays as a safety net).
 
 ## Sidebar
 
@@ -146,17 +147,17 @@ Open via the **🔔 ribbon icon** or the **"Toggle sidebar"** command.
 
 - **Overdue** — past deadline
 - **Due Today**
-- **Upcoming** — next N days (same *Days ahead* setting)
+- **Upcoming** — next N days (same _Days ahead_ setting)
 
 Filters: **today** (hide upcoming), **week** (cap upcoming at 7 days), **tag** (intersect by frontmatter tag), **clear**. Relative dates are shown (Today / Yesterday / Tue / in 3 days). Clicking a task opens the file and scrolls to the task line (or heading).
 
 ## Commands
 
-| Command | Action |
-|---|---|
-| Check reminders now | Run an interval check immediately |
-| Send test Telegram notification | Verify config |
-| Toggle sidebar | Open/close the task sidebar |
+| Command                         | Action                            |
+| ------------------------------- | --------------------------------- |
+| Check reminders now             | Run an interval check immediately |
+| Send test Telegram notification | Verify config                     |
+| Toggle sidebar                  | Open/close the task sidebar       |
 
 ## Message templates
 
@@ -168,37 +169,37 @@ Variables:
 
 Bulk messages send when more than one task is due; otherwise an individual message is sent. Messages are truncated at Telegram's 4096-character limit (markdown-safe cutoff when formatting is on).
 
-The template editor provides clickable variable chips, per-field character counters (warn at 80% of 4096), and a live preview panel with sample data (toggle: *Live preview*).
+The template editor provides clickable variable chips, per-field character counters (warn at 80% of 4096), and a live preview panel with sample data (toggle: _Live preview_).
 
 **Markdown formatting**: enable in settings for `*bold*`, `_italic_`, `` `code` ``, `[links](https://example.com)`. Literal characters the parser rejects cause Telegram to return an error — keep unescaped `*`/`_` usage minimal.
 
 ## Settings
 
-| Setting | Default | Notes |
-|---|---|---|
-| Telegram Bot Token | `''` | @BotFather |
-| Telegram Chat ID | `''` | @userinfobot |
-| Notifications Enabled | `true` | master switch (also gates at-time) |
-| Check Interval (minutes) | `30` | interval check cadence |
-| Max Tasks Per Check | `10` | due + upcoming budget per run |
-| Scan Mode | `whole-vault` | or specific folder |
-| Target Folder | `''` | when Scan Mode = specific folder |
-| At-time Notifications | `true` | master switch for the precise scheduler |
-| Reminder Syntax | `true` | recognize `@…` / `(@…)` dates |
-| Kanban Syntax | `true` | recognize `@… @@HH:MM` dates |
-| Recurring Tasks | `true` | recognize `🔁 every …` and auto-reschedule |
-| Lead Time (minutes) | `0` | fire N minutes before the deadline (max 1440) |
-| Catch-up Window (minutes) | `60` | PC-off catch-up for at-time/overdue/upcoming (max 10080) |
-| Strict Time Mode | `false` | datetime tasks fire only via the scheduler |
-| Upcoming Reminders | `true` | enable upcoming heads-up |
-| Days Ahead for Upcoming | `1` | 0 disables |
-| Upcoming Bulk Template | … | `{count}`, `{tasks}` |
-| Upcoming Individual Template | … | per-task variables |
-| Multi-task Digest Template | … | `{count}`, `{tasks}` |
-| Individual Message Template | … | per-task variables |
-| Test Message Template | … | no variables |
-| Live Preview | `true` | render template previews |
-| Use Markdown Formatting | `false` | Telegram markdown |
+| Setting                      | Default       | Notes                                                    |
+| ---------------------------- | ------------- | -------------------------------------------------------- |
+| Telegram Bot Token           | `''`          | @BotFather                                               |
+| Telegram Chat ID             | `''`          | @userinfobot                                             |
+| Notifications Enabled        | `true`        | master switch (also gates at-time)                       |
+| Check Interval (minutes)     | `30`          | interval check cadence                                   |
+| Max Tasks Per Check          | `10`          | due + upcoming budget per run                            |
+| Scan Mode                    | `whole-vault` | or specific folder                                       |
+| Target Folder                | `''`          | when Scan Mode = specific folder                         |
+| At-time Notifications        | `true`        | master switch for the precise scheduler                  |
+| Reminder Syntax              | `true`        | recognize `@…` / `(@…)` dates                            |
+| Kanban Syntax                | `true`        | recognize `@… @@HH:MM` dates                             |
+| Recurring Tasks              | `true`        | recognize `🔁 every …` and auto-reschedule               |
+| Lead Time (minutes)          | `0`           | fire N minutes before the deadline (max 1440)            |
+| Catch-up Window (minutes)    | `60`          | PC-off catch-up for at-time/overdue/upcoming (max 10080) |
+| Strict Time Mode             | `false`       | datetime tasks fire only via the scheduler               |
+| Upcoming Reminders           | `true`        | enable upcoming heads-up                                 |
+| Days Ahead for Upcoming      | `1`           | 0 disables                                               |
+| Upcoming Bulk Template       | …             | `{count}`, `{tasks}`                                     |
+| Upcoming Individual Template | …             | per-task variables                                       |
+| Multi-task Digest Template   | …             | `{count}`, `{tasks}`                                     |
+| Individual Message Template  | …             | per-task variables                                       |
+| Test Message Template        | …             | no variables                                             |
+| Live Preview                 | `true`        | render template previews                                 |
+| Use Markdown Formatting      | `false`       | Telegram markdown                                        |
 
 ## Development
 

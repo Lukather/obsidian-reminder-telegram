@@ -64,12 +64,14 @@ function mockTelegramError(errorCode: number, description: string): void {
 describe('loadNotificationState()', () => {
 	it('returns default state for null/undefined', () => {
 		expect(loadNotificationState(null)).toEqual(DEFAULT_NOTIFICATION_STATE);
-		expect(loadNotificationState(undefined)).toEqual(DEFAULT_NOTIFICATION_STATE);
+		expect(loadNotificationState(undefined)).toEqual(
+			DEFAULT_NOTIFICATION_STATE,
+		);
 	});
 
 	it('loads persisted state correctly', () => {
 		const data = {
-			notifiedTasks: { 'key1': 1000 },
+			notifiedTasks: { key1: 1000 },
 			notifiedAtTimeInstances: { 'task-a': 2000 },
 			lastCheck: 999,
 		};
@@ -87,7 +89,9 @@ describe('loadNotificationState()', () => {
 	});
 
 	it('handles non-object data', () => {
-		expect(loadNotificationState('not an object')).toEqual(DEFAULT_NOTIFICATION_STATE);
+		expect(loadNotificationState('not an object')).toEqual(
+			DEFAULT_NOTIFICATION_STATE,
+		);
 		expect(loadNotificationState(42)).toEqual(DEFAULT_NOTIFICATION_STATE);
 	});
 });
@@ -95,7 +99,7 @@ describe('loadNotificationState()', () => {
 describe('saveNotificationState()', () => {
 	it('round-trips through load/save', () => {
 		const state: NotificationState = {
-			notifiedTasks: { 'a': 1, 'b': 2 },
+			notifiedTasks: { a: 1, b: 2 },
 			notifiedAtTimeInstances: { 'task-x': 9000 },
 			lastCheck: 123,
 		};
@@ -164,7 +168,9 @@ describe('pruneNotificationState()', () => {
 
 		// After age pruning: 500 fresh entries survive (the 501 stale ones are 40 days old → pruned)
 		// So we should have 500 entries, well under 1000 cap
-		expect(Object.keys(state.notifiedTasks).length).toBeLessThanOrEqual(1000);
+		expect(Object.keys(state.notifiedTasks).length).toBeLessThanOrEqual(
+			1000,
+		);
 	});
 
 	it('does not prune at exactly 1000 entries if all recent', () => {
@@ -229,7 +235,11 @@ describe('checkAndNotify()', () => {
 	});
 
 	it('updates lastCheck even when no tasks to notify', async () => {
-		const state: NotificationState = { notifiedTasks: {}, notifiedAtTimeInstances: {}, lastCheck: 0 };
+		const state: NotificationState = {
+			notifiedTasks: {},
+			notifiedAtTimeInstances: {},
+			lastCheck: 0,
+		};
 		await checkAndNotify([], BOT_TOKEN, CHAT_ID, state, {
 			checkToday: true,
 			checkOverdue: true,
@@ -243,16 +253,25 @@ describe('checkAndNotify()', () => {
 		// Use dueTodayTasks (3 tasks due today) + overdue from allSampleTasks
 		const dueToday = dueTodayTasks;
 		const overdue = allSampleTasks.filter(
-			t => !t.completed && t.deadline !== null && t.deadline.type === 'date-only'
-			&& t.deadline.year < 2026
+			(t) =>
+				!t.completed &&
+				t.deadline !== null &&
+				t.deadline.type === 'date-only' &&
+				t.deadline.year < 2026,
 		);
 
-		const result = await checkAndNotify([...dueToday, ...overdue], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			[...dueToday, ...overdue],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		expect(result.notifiedTasks).toBeGreaterThan(0);
 		expect(result.sendResults.length).toBe(1); // single bulk message
@@ -314,18 +333,29 @@ describe('checkAndNotify()', () => {
 		const state = freshState();
 		// Use upcomingTasks from fixtures (due 2026-06-15 and 2026-06-20)
 		const upcoming = allSampleTasks.filter(
-			t => !t.completed && t.deadline !== null && t.deadline.type === 'date-only'
-			&& t.deadline.year === 2026 && t.deadline.month === 6 && t.deadline.day > 11
+			(t) =>
+				!t.completed &&
+				t.deadline !== null &&
+				t.deadline.type === 'date-only' &&
+				t.deadline.year === 2026 &&
+				t.deadline.month === 6 &&
+				t.deadline.day > 11,
 		);
 		expect(upcoming.length).toBeGreaterThan(0);
 
-		const result = await checkAndNotify(upcoming, BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 10,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			upcoming,
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 10,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		expect(result.notifiedTasks).toBeGreaterThan(0);
 	});
@@ -334,17 +364,28 @@ describe('checkAndNotify()', () => {
 		const state = freshState();
 		// Only upcoming tasks (no due/overdue)
 		const upcoming = allSampleTasks.filter(
-			t => !t.completed && t.deadline !== null && t.deadline.type === 'date-only'
-			&& t.deadline.year === 2026 && t.deadline.month === 6 && t.deadline.day > 11
+			(t) =>
+				!t.completed &&
+				t.deadline !== null &&
+				t.deadline.type === 'date-only' &&
+				t.deadline.year === 2026 &&
+				t.deadline.month === 6 &&
+				t.deadline.day > 11,
 		);
 
-		const result = await checkAndNotify(upcoming, BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 0,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			upcoming,
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 0,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		expect(result.notifiedTasks).toBe(0);
 	});
@@ -448,12 +489,18 @@ describe('checkAndNotify() with check flags', () => {
 			deadline: makeDeadlineDateOnly(2026, 6, 11),
 		});
 
-		const result = await checkAndNotify([overdueTask, todayTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: false,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			[overdueTask, todayTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: false,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		expect(result.dueTasks).toBe(1); // only today
 		expect(result.notifiedTasks).toBe(1);
@@ -470,12 +517,18 @@ describe('checkAndNotify() with check flags', () => {
 			deadline: makeDeadlineDateOnly(2026, 6, 11),
 		});
 
-		const result = await checkAndNotify([overdueTask, todayTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: false,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			[overdueTask, todayTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: false,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		expect(result.dueTasks).toBe(1); // only overdue
 		expect(result.notifiedTasks).toBe(1);
@@ -509,13 +562,19 @@ describe('checkAndNotify() with strictTimeMode', () => {
 			deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
 		});
 
-		const result = await checkAndNotify([dateOnlyTask, datetimeTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-			strictTimeMode: true
-		});
+		const result = await checkAndNotify(
+			[dateOnlyTask, datetimeTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+				strictTimeMode: true,
+			},
+		);
 
 		// Only the date-only task is notified; the datetime task is
 		// owned by the AtTimeScheduler in strict mode.
@@ -533,12 +592,18 @@ describe('checkAndNotify() with strictTimeMode', () => {
 			deadline: makeDeadlineDateTime('2026-06-11T15:00:00'),
 		});
 
-		const result = await checkAndNotify([dateOnlyTask, datetimeTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			[dateOnlyTask, datetimeTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		// Both tasks are notified when strictTimeMode is off.
 		expect(result.notifiedTasks).toBe(2);
@@ -570,13 +635,19 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 	it('fires an overdue task inside the catch-up window (PC was off briefly)', async () => {
 		const state = freshState();
 		// 24h overdue, window 25h → within window → fires.
-		const result = await checkAndNotify([overdue24h], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-			catchUpWindowMinutes: 1500,
-		});
+		const result = await checkAndNotify(
+			[overdue24h],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+				catchUpWindowMinutes: 1500,
+			},
+		);
 
 		expect(result.notifiedTasks).toBe(1);
 		expect(result.sendResults.length).toBe(1);
@@ -586,13 +657,19 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 	it('silently drops an overdue task outside the catch-up window', async () => {
 		const state = freshState();
 		// 24h overdue, window 60min → outside → dropped, but still counted as due.
-		const result = await checkAndNotify([overdue24h], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-			catchUpWindowMinutes: 60,
-		});
+		const result = await checkAndNotify(
+			[overdue24h],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+				catchUpWindowMinutes: 60,
+			},
+		);
 
 		expect(result.dueTasks).toBe(1); // still a due/overdue task overall
 		expect(result.notifiedTasks).toBe(0);
@@ -606,13 +683,19 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 			deadline: makeDeadlineDateOnly(2026, 6, 11),
 		});
 
-		const result = await checkAndNotify([dueTodayTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-			catchUpWindowMinutes: 60,
-		});
+		const result = await checkAndNotify(
+			[dueTodayTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+				catchUpWindowMinutes: 60,
+			},
+		);
 
 		expect(result.notifiedTasks).toBe(1);
 	});
@@ -625,13 +708,19 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 			deadline: makeDeadlineDateOnly(2026, 6, 1),
 		});
 
-		const result = await checkAndNotify([oldOverdue], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-			catchUpWindowMinutes: 60,
-		});
+		const result = await checkAndNotify(
+			[oldOverdue],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+				catchUpWindowMinutes: 60,
+			},
+		);
 
 		expect(result.dueTasks).toBe(1);
 		expect(result.notifiedTasks).toBe(0);
@@ -645,12 +734,18 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 			deadline: makeDeadlineDateOnly(2026, 6, 1),
 		});
 
-		const result = await checkAndNotify([oldOverdue], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: true,
-			maxTasks: 10,
-		});
+		const result = await checkAndNotify(
+			[oldOverdue],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+		);
 
 		expect(result.notifiedTasks).toBe(1);
 	});
@@ -658,14 +753,20 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 	it('fires a missed upcoming task that became overdue within the window on open', async () => {
 		const state = freshState();
 		// Was upcoming while the PC was off; now overdue by 24h — inside a 25h window.
-		const result = await checkAndNotify([overdue24h], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: true,
-			maxTasks: 10,
-			catchUpWindowMinutes: 1500,
-		});
+		const result = await checkAndNotify(
+			[overdue24h],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: true,
+				maxTasks: 10,
+				catchUpWindowMinutes: 1500,
+			},
+		);
 
 		expect(result.notifiedTasks).toBe(1);
 	});
@@ -677,14 +778,20 @@ describe('checkAndNotify() with overdue catch-up window (issue #99)', () => {
 			deadline: makeDeadlineDateOnly(2026, 6, 13),
 		});
 
-		const result = await checkAndNotify([upcomingTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: true,
-			maxTasks: 10,
-			catchUpWindowMinutes: 60,
-		});
+		const result = await checkAndNotify(
+			[upcomingTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: true,
+				maxTasks: 10,
+				catchUpWindowMinutes: 60,
+			},
+		);
 
 		expect(result.notifiedTasks).toBe(1);
 	});
@@ -759,7 +866,9 @@ describe('computeNextAtTimeFire()', () => {
 			deadline: makeDeadlineDateTime('2026-06-11T13:00:00'),
 		});
 		const scheduledFire = new Date('2026-06-11T13:00:00Z').getTime();
-		expect(computeNextAtTimeFire([t], NOW, 0, { [t.id]: scheduledFire })).toBeNull();
+		expect(
+			computeNextAtTimeFire([t], NOW, 0, { [t.id]: scheduledFire }),
+		).toBeNull();
 	});
 
 	it('returns a future wake for tasks past the catch-up window (catch-up is for now-fires only)', () => {
@@ -822,7 +931,9 @@ describe('dueAtTimeTasks()', () => {
 			deadline: makeDeadlineDateTime('2026-06-11T11:00:00'),
 		});
 		const scheduledFire = new Date('2026-06-11T11:00:00Z').getTime();
-		const fires = dueAtTimeTasks([t], NOW, 60, 0, { [t.id]: scheduledFire });
+		const fires = dueAtTimeTasks([t], NOW, 60, 0, {
+			[t.id]: scheduledFire,
+		});
 		expect(fires).toEqual([]);
 	});
 
@@ -867,7 +978,7 @@ describe('dueAtTimeTasks()', () => {
 			deadline: makeDeadlineDateTime('2026-06-11T11:30:00'),
 		});
 		const fires = dueAtTimeTasks([a, b, c], NOW, 60, 0, {});
-		expect(fires.map(f => f.task.id)).toEqual([b.id, c.id, a.id]);
+		expect(fires.map((f) => f.task.id)).toEqual([b.id, c.id, a.id]);
 	});
 
 	it('catch-up window of 0 drops anything from the past', () => {
@@ -953,7 +1064,7 @@ describe('dispatchAtTimeReminders()', () => {
 		const result = await dispatchAtTimeReminders([task], NOW, 60, 0, {
 			botToken: BOT_TOKEN,
 			chatId: CHAT_ID,
-			state
+			state,
 		});
 		expect(result.fires).toHaveLength(1);
 		expect(result.sendResults).toHaveLength(1);
@@ -971,12 +1082,14 @@ describe('dispatchAtTimeReminders()', () => {
 			botToken: BOT_TOKEN,
 			chatId: CHAT_ID,
 			state,
-			individualTemplate: 'Task: {taskName} ({deadline})'
+			individualTemplate: 'Task: {taskName} ({deadline})',
 		});
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
 		const lastCall = calls[calls.length - 1]!;
 		const arg = lastCall[0] as { body?: string };
-		const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+		const body = arg.body
+			? (JSON.parse(arg.body) as { text?: string })
+			: {};
 		expect(body.text).toContain('(delayed 60m)');
 	});
 
@@ -991,12 +1104,14 @@ describe('dispatchAtTimeReminders()', () => {
 			botToken: BOT_TOKEN,
 			chatId: CHAT_ID,
 			state,
-			individualTemplate: 'Task: {taskName}'
+			individualTemplate: 'Task: {taskName}',
 		});
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
 		const lastCall = calls[calls.length - 1]!;
 		const arg = lastCall[0] as { body?: string };
-		const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+		const body = arg.body
+			? (JSON.parse(arg.body) as { text?: string })
+			: {};
 		expect(body.text).not.toContain('delayed');
 	});
 
@@ -1009,7 +1124,7 @@ describe('dispatchAtTimeReminders()', () => {
 		await dispatchAtTimeReminders([task], NOW, 60, 0, {
 			botToken: BOT_TOKEN,
 			chatId: CHAT_ID,
-			state
+			state,
 		});
 		const scheduledFire = new Date('2026-06-11T11:00:00Z').getTime();
 		expect(state.notifiedAtTimeInstances[task.id]).toBe(scheduledFire);
@@ -1025,7 +1140,7 @@ describe('dispatchAtTimeReminders()', () => {
 		await dispatchAtTimeReminders([task], NOW, 60, 0, {
 			botToken: BOT_TOKEN,
 			chatId: CHAT_ID,
-			state
+			state,
 		});
 		expect(state.notifiedAtTimeInstances[task.id]).toBeUndefined();
 	});
@@ -1035,7 +1150,7 @@ describe('dispatchAtTimeReminders()', () => {
 		const result = await dispatchAtTimeReminders([], NOW, 60, 0, {
 			botToken: BOT_TOKEN,
 			chatId: CHAT_ID,
-			state
+			state,
 		});
 		expect(result.fires).toEqual([]);
 		expect(result.sendResults).toEqual([]);
@@ -1062,25 +1177,39 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		const state = freshState();
 		// Only upcoming tasks (no due/overdue)
 		const upcoming = allSampleTasks.filter(
-			t => !t.completed && t.deadline !== null && t.deadline.type === 'date-only'
-			&& t.deadline.year === 2026 && t.deadline.month === 6 && t.deadline.day > 11
+			(t) =>
+				!t.completed &&
+				t.deadline !== null &&
+				t.deadline.type === 'date-only' &&
+				t.deadline.year === 2026 &&
+				t.deadline.month === 6 &&
+				t.deadline.day > 11,
 		);
 		expect(upcoming.length).toBeGreaterThan(0);
 
 		const customUpcomingTemplate = 'Upcoming: {taskName}';
 		const customUpcomingBulkTemplate = 'UPCOMING ({count}): {tasks}';
 
-		const result = await checkAndNotify(upcoming, BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 10,
-			sendBulk: false,
-			maxTasks: 10,
-		},
-		// bulkTemplate, individualTemplate, testTemplate, useMarkdown
-		undefined, 'Regular: {taskName}', undefined, false,
-		// upcomingBulkTemplate, upcomingIndividualTemplate
-		customUpcomingBulkTemplate, customUpcomingTemplate
+		const result = await checkAndNotify(
+			upcoming,
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 10,
+				sendBulk: false,
+				maxTasks: 10,
+			},
+			// bulkTemplate, individualTemplate, testTemplate, useMarkdown
+			undefined,
+			'Regular: {taskName}',
+			undefined,
+			false,
+			// upcomingBulkTemplate, upcomingIndividualTemplate
+			customUpcomingBulkTemplate,
+			customUpcomingTemplate,
 		);
 
 		expect(result.notifiedTasks).toBeGreaterThan(0);
@@ -1090,7 +1219,9 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
 		for (const call of calls) {
 			const arg = call[0] as { body?: string };
-			const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+			const body = arg.body
+				? (JSON.parse(arg.body) as { text?: string })
+				: {};
 			expect(body.text).toContain('Upcoming:');
 		}
 	});
@@ -1102,16 +1233,25 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		const customUpcomingTemplate = 'Upcoming: {taskName}';
 		const customUpcomingBulkTemplate = 'UPCOMING ({count}): {tasks}';
 
-		const result = await checkAndNotify(tasks, BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			sendBulk: false,
-			maxTasks: 10,
-		},
-		// bulkTemplate, individualTemplate, testTemplate, useMarkdown
-		undefined, 'Regular: {taskName}', undefined, false,
-		// upcomingBulkTemplate, upcomingIndividualTemplate
-		customUpcomingBulkTemplate, customUpcomingTemplate
+		const result = await checkAndNotify(
+			tasks,
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				sendBulk: false,
+				maxTasks: 10,
+			},
+			// bulkTemplate, individualTemplate, testTemplate, useMarkdown
+			undefined,
+			'Regular: {taskName}',
+			undefined,
+			false,
+			// upcomingBulkTemplate, upcomingIndividualTemplate
+			customUpcomingBulkTemplate,
+			customUpcomingTemplate,
 		);
 
 		expect(result.notifiedTasks).toBe(2);
@@ -1120,7 +1260,9 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
 		for (const call of calls) {
 			const arg = call[0] as { body?: string };
-			const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+			const body = arg.body
+				? (JSON.parse(arg.body) as { text?: string })
+				: {};
 			expect(body.text).toContain('Regular:');
 			expect(body.text).not.toContain('Upcoming:');
 		}
@@ -1137,15 +1279,24 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 			deadlineString: '📅 2026-06-15',
 		});
 
-		const result = await checkAndNotify([dueTask, upcomingTask], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: false,
-			maxTasks: 10,
-		},
-		undefined, 'Due: {taskName}', undefined, false,
-		undefined, 'Future: {taskName}'
+		const result = await checkAndNotify(
+			[dueTask, upcomingTask],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: false,
+				maxTasks: 10,
+			},
+			undefined,
+			'Due: {taskName}',
+			undefined,
+			false,
+			undefined,
+			'Future: {taskName}',
 		);
 
 		// Should get 2 send results (one for due, one for upcoming)
@@ -1156,11 +1307,17 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
 		const messages = calls.map((call: unknown[]) => {
 			const arg = call[0] as { body?: string };
-			return arg.body ? (JSON.parse(arg.body) as { text?: string }).text : '';
+			return arg.body
+				? (JSON.parse(arg.body) as { text?: string }).text
+				: '';
 		});
 
-		const hasDueMessage = messages.some((msg: string) => msg.includes('Due:'));
-		const hasFutureMessage = messages.some((msg: string) => msg.includes('Future:'));
+		const hasDueMessage = messages.some((msg: string) =>
+			msg.includes('Due:'),
+		);
+		const hasFutureMessage = messages.some((msg: string) =>
+			msg.includes('Future:'),
+		);
 		expect(hasDueMessage).toBe(true);
 		expect(hasFutureMessage).toBe(true);
 	});
@@ -1180,17 +1337,27 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 			deadlineString: '📅 2026-06-16',
 		});
 
-		const customUpcomingBulkTemplate = 'UPCOMING DIGEST ({count}):\n\n{tasks}';
+		const customUpcomingBulkTemplate =
+			'UPCOMING DIGEST ({count}):\n\n{tasks}';
 
-		const result = await checkAndNotify([upcoming1, upcoming2], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: true,
-			maxTasks: 10,
-		},
-		'Due bulk: {count}', 'Due: {taskName}', undefined, false,
-		customUpcomingBulkTemplate, 'Up: {taskName}'
+		const result = await checkAndNotify(
+			[upcoming1, upcoming2],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+			'Due bulk: {count}',
+			'Due: {taskName}',
+			undefined,
+			false,
+			customUpcomingBulkTemplate,
+			'Up: {taskName}',
 		);
 
 		expect(result.notifiedTasks).toBe(2);
@@ -1199,7 +1366,9 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		const calls = (requestUrl as ReturnType<typeof vi.fn>).mock.calls;
 		const lastCall = calls[calls.length - 1]!;
 		const arg = lastCall[0] as { body?: string };
-		const body = arg.body ? JSON.parse(arg.body) as { text?: string } : {};
+		const body = arg.body
+			? (JSON.parse(arg.body) as { text?: string })
+			: {};
 		expect(body.text).toContain('UPCOMING DIGEST');
 		expect(body.text).not.toContain('Due bulk');
 	});
@@ -1222,15 +1391,24 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		});
 		tasks.push(upcoming1, upcoming2);
 
-		const result = await checkAndNotify(tasks, BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: false,
-			maxTasks: 3, // Only 3 total allowed
-		},
-		undefined, 'Due: {taskName}', undefined, false,
-		undefined, 'Upcoming: {taskName}'
+		const result = await checkAndNotify(
+			tasks,
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: false,
+				maxTasks: 3, // Only 3 total allowed
+			},
+			undefined,
+			'Due: {taskName}',
+			undefined,
+			false,
+			undefined,
+			'Upcoming: {taskName}',
 		);
 
 		// 2 due + 1 upcoming (maxTasks=3, due tasks consume 2 slots, 1 remaining for upcoming)
@@ -1242,15 +1420,24 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 		// A task due today should not also be sent as upcoming
 		const tasks = dueTodayTasks;
 
-		const result = await checkAndNotify(tasks, BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: true,
-			maxTasks: 10,
-		},
-		undefined, 'Due: {taskName}', undefined, false,
-		undefined, 'Upcoming: {taskName}'
+		const result = await checkAndNotify(
+			tasks,
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: true,
+				maxTasks: 10,
+			},
+			undefined,
+			'Due: {taskName}',
+			undefined,
+			false,
+			undefined,
+			'Upcoming: {taskName}',
 		);
 
 		// All 3 due-today tasks, no duplicates from upcoming
@@ -1268,15 +1455,24 @@ describe('checkAndNotify() with separate upcoming templates', () => {
 			deadlineString: '📅 2026-06-15',
 		});
 
-		const result = await checkAndNotify([upcoming], BOT_TOKEN, CHAT_ID, state, {
-			checkToday: true,
-			checkOverdue: true,
-			daysAhead: 7,
-			sendBulk: false,
-			maxTasks: 10,
-		},
-		undefined, 'Due: {taskName}', undefined, false,
-		undefined, 'Upcoming: {taskName}'
+		const result = await checkAndNotify(
+			[upcoming],
+			BOT_TOKEN,
+			CHAT_ID,
+			state,
+			{
+				checkToday: true,
+				checkOverdue: true,
+				daysAhead: 7,
+				sendBulk: false,
+				maxTasks: 10,
+			},
+			undefined,
+			'Due: {taskName}',
+			undefined,
+			false,
+			undefined,
+			'Upcoming: {taskName}',
 		);
 
 		expect(result.upcomingTasks).toBe(1);

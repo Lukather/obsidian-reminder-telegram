@@ -1,4 +1,4 @@
-import {Notice, Plugin, TFile, MarkdownView} from 'obsidian';
+import { Notice, Plugin, TFile, MarkdownView } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	ReminderTelegramSettings,
@@ -9,14 +9,27 @@ import {
 	validateReminderSyntaxEnabled,
 	validateKanbanSyntaxEnabled,
 	validateStrictTimeMode,
-	validateRecurringTasksEnabled
-} from "./settings";
-import {NotificationState, loadNotificationState, saveNotificationState, checkDeadlines, sendTestNotification, CheckDeadlinesOptions, dispatchAtTimeReminders} from "./checker";
-import {ScanSettings, VaultTask, computeCompletionReschedules, applyRescheduleEdits} from "./tasks";
-import {TaskIndex} from "./task-index";
-import {sanitizeErrorMessage} from "./utils";
-import {ReminderTelegramSidebarView, SIDEBAR_VIEW_TYPE} from "./sidebar-view";
-import {AtTimeScheduler} from "./scheduler";
+	validateRecurringTasksEnabled,
+} from './settings';
+import {
+	NotificationState,
+	loadNotificationState,
+	saveNotificationState,
+	checkDeadlines,
+	sendTestNotification,
+	CheckDeadlinesOptions,
+	dispatchAtTimeReminders,
+} from './checker';
+import {
+	ScanSettings,
+	VaultTask,
+	computeCompletionReschedules,
+	applyRescheduleEdits,
+} from './tasks';
+import { TaskIndex } from './task-index';
+import { sanitizeErrorMessage } from './utils';
+import { ReminderTelegramSidebarView, SIDEBAR_VIEW_TYPE } from './sidebar-view';
+import { AtTimeScheduler } from './scheduler';
 
 function isMarkdownFile(file: unknown): file is TFile {
 	return file instanceof TFile && file.extension === 'md';
@@ -33,7 +46,6 @@ export default class ReminderTelegramPlugin extends Plugin {
 	private atTimeRearmTimer: number | null = null;
 	statusBarItemEl: HTMLElement | null = null;
 
-
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.notificationState = loadNotificationState(await this.loadData());
@@ -44,9 +56,11 @@ export default class ReminderTelegramPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('create', (file) => {
 				if (isMarkdownFile(file)) {
-					void this.taskIndex.updateFile(file).then(() => this.notifySidebarViews());
+					void this.taskIndex
+						.updateFile(file)
+						.then(() => this.notifySidebarViews());
 				}
-			})
+			}),
 		);
 		this.registerEvent(
 			this.app.vault.on('modify', (file) => {
@@ -54,24 +68,29 @@ export default class ReminderTelegramPlugin extends Plugin {
 					// Capture the pre-edit state synchronously so we can detect
 					// open → completed transitions for recurring tasks (issue #98).
 					const before = this.taskIndex.getTasksForFile(file.path);
-					void this.taskIndex.updateFile(file)
-						.then(async () => this.applyRecurringReschedules(file, before))
+					void this.taskIndex
+						.updateFile(file)
+						.then(async () =>
+							this.applyRecurringReschedules(file, before),
+						)
 						.then(() => this.notifySidebarViews());
 				}
-			})
+			}),
 		);
 		this.registerEvent(
 			this.app.vault.on('delete', (file) => {
 				this.taskIndex.removeFile(file);
 				this.notifySidebarViews();
-			})
+			}),
 		);
 		this.registerEvent(
 			this.app.metadataCache.on('resolve', (file) => {
 				if (isMarkdownFile(file)) {
-					void this.taskIndex.updateFile(file).then(() => this.notifySidebarViews());
+					void this.taskIndex
+						.updateFile(file)
+						.then(() => this.notifySidebarViews());
 				}
-			})
+			}),
 		);
 
 		this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => {
@@ -80,8 +99,11 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.addClass('reminder-telegram-status-bar');
-		statusBarItemEl.createSpan({text: 'Reminder Telegram'});
-		statusBarItemEl.createSpan({cls: 'reminder-telegram-icon', text: '🔔'});
+		statusBarItemEl.createSpan({ text: 'Reminder Telegram' });
+		statusBarItemEl.createSpan({
+			cls: 'reminder-telegram-icon',
+			text: '🔔',
+		});
 		statusBarItemEl.onClickEvent(() => {
 			new Notice('Checking for due tasks...');
 			void this.manualCheck();
@@ -100,15 +122,20 @@ export default class ReminderTelegramPlugin extends Plugin {
 			callback: (): void => {
 				new Notice('Checking for due tasks...');
 				void this.manualCheck();
-			}
+			},
 		});
 
 		this.addCommand({
 			id: 'test-telegram-notification',
 			name: 'Send test Telegram notification',
 			callback: async (): Promise<void> => {
-				if (!this.settings.telegramBotToken || !this.settings.telegramChatId) {
-					new Notice('Please configure Telegram bot token and chat ID in settings');
+				if (
+					!this.settings.telegramBotToken ||
+					!this.settings.telegramChatId
+				) {
+					new Notice(
+						'Please configure Telegram bot token and chat ID in settings',
+					);
 					return;
 				}
 				new Notice('Sending test notification...');
@@ -116,14 +143,14 @@ export default class ReminderTelegramPlugin extends Plugin {
 					this.settings.telegramBotToken,
 					this.settings.telegramChatId,
 					this.settings.testMessageTemplate,
-					this.settings.useMarkdownFormatting
+					this.settings.useMarkdownFormatting,
 				);
 				if (result.success) {
 					new Notice('Test notification sent successfully!');
 				} else {
 					new Notice(`Failed to send test: ${result.error}`);
 				}
-			}
+			},
 		});
 
 		this.addCommand({
@@ -131,14 +158,16 @@ export default class ReminderTelegramPlugin extends Plugin {
 			name: 'Toggle sidebar',
 			callback: (): void => {
 				void this.toggleSidebar();
-			}
+			},
 		});
 
 		// --- At-time scheduler (issue #89) -----------------------------
 		// Build the scheduler up front so the wake callback is wired
 		// before the first arm. The callback is responsible for
 		// dispatching notifications AND re-arming for the next task.
-		this.atTimeScheduler = new AtTimeScheduler(() => this.handleAtTimeWake());
+		this.atTimeScheduler = new AtTimeScheduler(() =>
+			this.handleAtTimeWake(),
+		);
 		this.armAtTimeScheduler();
 		// ---------------------------------------------------------------
 
@@ -146,21 +175,25 @@ export default class ReminderTelegramPlugin extends Plugin {
 		// candidate set (new deadline, completed, deleted, app resume).
 		// Rearms are debounced to coalesce bursts of vault events.
 		this.registerEvent(
-			this.app.vault.on('create', () => this.scheduleAtTimeRearm())
+			this.app.vault.on('create', () => this.scheduleAtTimeRearm()),
 		);
 		this.registerEvent(
-			this.app.vault.on('modify', () => this.scheduleAtTimeRearm())
+			this.app.vault.on('modify', () => this.scheduleAtTimeRearm()),
 		);
 		this.registerEvent(
-			this.app.vault.on('delete', () => this.scheduleAtTimeRearm())
+			this.app.vault.on('delete', () => this.scheduleAtTimeRearm()),
 		);
 		this.registerEvent(
-			this.app.metadataCache.on('resolve', () => this.scheduleAtTimeRearm())
+			this.app.metadataCache.on('resolve', () =>
+				this.scheduleAtTimeRearm(),
+			),
 		);
 		// window-open fires on cold start + every time the workspace
 		// layout re-initialises (e.g. after the user reopens the window).
 		this.registerEvent(
-			this.app.workspace.on('window-open', () => this.scheduleAtTimeRearm())
+			this.app.workspace.on('window-open', () =>
+				this.scheduleAtTimeRearm(),
+			),
 		);
 		// visibilitychange: rearm when the tab becomes visible again so a
 		// laptop waking from sleep doesn't fire a stale timer.
@@ -194,48 +227,76 @@ export default class ReminderTelegramPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ReminderTelegramSettings>);
-		this.settings.maxTasksPerCheck = typeof this.settings.maxTasksPerCheck === 'number' && this.settings.maxTasksPerCheck >= 1
-			? this.settings.maxTasksPerCheck
-			: DEFAULT_SETTINGS.maxTasksPerCheck;
-		this.settings.upcomingRemindersDaysAhead = typeof this.settings.upcomingRemindersDaysAhead === 'number' && this.settings.upcomingRemindersDaysAhead >= 0
-			? this.settings.upcomingRemindersDaysAhead
-			: DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
-		this.settings.upcomingRemindersEnabled = typeof this.settings.upcomingRemindersEnabled === 'boolean'
-			? this.settings.upcomingRemindersEnabled
-			: DEFAULT_SETTINGS.upcomingRemindersEnabled;
-		this.settings.livePreviewEnabled = typeof this.settings.livePreviewEnabled === 'boolean'
-			? this.settings.livePreviewEnabled
-			: DEFAULT_SETTINGS.livePreviewEnabled;
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			(await this.loadData()) as Partial<ReminderTelegramSettings>,
+		);
+		this.settings.maxTasksPerCheck =
+			typeof this.settings.maxTasksPerCheck === 'number' &&
+			this.settings.maxTasksPerCheck >= 1
+				? this.settings.maxTasksPerCheck
+				: DEFAULT_SETTINGS.maxTasksPerCheck;
+		this.settings.upcomingRemindersDaysAhead =
+			typeof this.settings.upcomingRemindersDaysAhead === 'number' &&
+			this.settings.upcomingRemindersDaysAhead >= 0
+				? this.settings.upcomingRemindersDaysAhead
+				: DEFAULT_SETTINGS.upcomingRemindersDaysAhead;
+		this.settings.upcomingRemindersEnabled =
+			typeof this.settings.upcomingRemindersEnabled === 'boolean'
+				? this.settings.upcomingRemindersEnabled
+				: DEFAULT_SETTINGS.upcomingRemindersEnabled;
+		this.settings.livePreviewEnabled =
+			typeof this.settings.livePreviewEnabled === 'boolean'
+				? this.settings.livePreviewEnabled
+				: DEFAULT_SETTINGS.livePreviewEnabled;
 		// At-time settings (issue #89): reuse the pure validators from settings.ts
 		// so the onChange handlers and load-time validation stay in lock-step.
-		this.settings.atTimeNotificationsEnabled = validateAtTimeNotificationsEnabled(this.settings.atTimeNotificationsEnabled);
-		this.settings.leadTimeMinutes = validateLeadTimeMinutes(this.settings.leadTimeMinutes);
-		this.settings.atTimeCatchUpWindowMinutes = validateAtTimeCatchUpWindowMinutes(this.settings.atTimeCatchUpWindowMinutes);
-		this.settings.strictTimeMode = validateStrictTimeMode(this.settings.strictTimeMode);
-		this.settings.reminderSyntaxEnabled = validateReminderSyntaxEnabled(this.settings.reminderSyntaxEnabled);
-		this.settings.kanbanSyntaxEnabled = validateKanbanSyntaxEnabled(this.settings.kanbanSyntaxEnabled);
-		this.settings.recurringTasksEnabled = validateRecurringTasksEnabled(this.settings.recurringTasksEnabled);
+		this.settings.atTimeNotificationsEnabled =
+			validateAtTimeNotificationsEnabled(
+				this.settings.atTimeNotificationsEnabled,
+			);
+		this.settings.leadTimeMinutes = validateLeadTimeMinutes(
+			this.settings.leadTimeMinutes,
+		);
+		this.settings.atTimeCatchUpWindowMinutes =
+			validateAtTimeCatchUpWindowMinutes(
+				this.settings.atTimeCatchUpWindowMinutes,
+			);
+		this.settings.strictTimeMode = validateStrictTimeMode(
+			this.settings.strictTimeMode,
+		);
+		this.settings.reminderSyntaxEnabled = validateReminderSyntaxEnabled(
+			this.settings.reminderSyntaxEnabled,
+		);
+		this.settings.kanbanSyntaxEnabled = validateKanbanSyntaxEnabled(
+			this.settings.kanbanSyntaxEnabled,
+		);
+		this.settings.recurringTasksEnabled = validateRecurringTasksEnabled(
+			this.settings.recurringTasksEnabled,
+		);
 	}
 
 	private getCheckOptions(): Partial<CheckDeadlinesOptions> {
-		const daysAhead = this.settings.upcomingRemindersEnabled && this.settings.upcomingRemindersDaysAhead > 0
-			? this.settings.upcomingRemindersDaysAhead
-			: 0;
+		const daysAhead =
+			this.settings.upcomingRemindersEnabled &&
+			this.settings.upcomingRemindersDaysAhead > 0
+				? this.settings.upcomingRemindersDaysAhead
+				: 0;
 		return {
 			maxTasks: this.settings.maxTasksPerCheck,
 			daysAhead,
 			strictTimeMode: this.settings.strictTimeMode,
 			// Shared catch-up window (issue #99): overdue + previously-upcoming
 			// tasks missed while the app was closed fire within this window.
-			catchUpWindowMinutes: this.settings.atTimeCatchUpWindowMinutes
+			catchUpWindowMinutes: this.settings.atTimeCatchUpWindowMinutes,
 		};
 	}
 
 	async saveSettings(): Promise<void> {
 		const dataToSave = {
 			...this.settings,
-			...saveNotificationState(this.notificationState)
+			...saveNotificationState(this.notificationState),
 		};
 		await this.saveData(dataToSave);
 	}
@@ -246,13 +307,15 @@ export default class ReminderTelegramPlugin extends Plugin {
 			targetFolder: this.settings.targetFolder,
 			reminderSyntaxEnabled: this.settings.reminderSyntaxEnabled,
 			kanbanSyntaxEnabled: this.settings.kanbanSyntaxEnabled,
-			recurringTasksEnabled: this.settings.recurringTasksEnabled
+			recurringTasksEnabled: this.settings.recurringTasksEnabled,
 		};
 	}
 
 	async manualCheck(): Promise<void> {
 		if (!this.settings.telegramBotToken || !this.settings.telegramChatId) {
-			new Notice('Please configure Telegram bot token and chat ID in settings');
+			new Notice(
+				'Please configure Telegram bot token and chat ID in settings',
+			);
 			return;
 		}
 		if (!this.settings.notificationsEnabled) {
@@ -262,25 +325,30 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		try {
 			this.notificationState = await checkDeadlines(
-					this.taskIndex.getAllTasks(),
+				this.taskIndex.getAllTasks(),
+				this.settings.telegramBotToken,
+				this.settings.telegramChatId,
+				this.notificationState,
+				this.settings.bulkMessageTemplate,
+				this.settings.individualMessageTemplate,
+				this.settings.useMarkdownFormatting,
+				this.getCheckOptions(),
+				this.settings.upcomingBulkMessageTemplate,
+				this.settings.upcomingMessageTemplate,
+			);
+			await this.saveSettings();
+			this.updateStatusBarText(
+				'Last check: ' + new Date().toLocaleTimeString(),
+			);
+		} catch (error) {
+			console.error(
+				'Error during manual check:',
+				sanitizeErrorMessage(
+					String(error),
 					this.settings.telegramBotToken,
 					this.settings.telegramChatId,
-					this.notificationState,
-					this.settings.bulkMessageTemplate,
-					this.settings.individualMessageTemplate,
-					this.settings.useMarkdownFormatting,
-					this.getCheckOptions(),
-					this.settings.upcomingBulkMessageTemplate,
-					this.settings.upcomingMessageTemplate
-				);
-			await this.saveSettings();
-			this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
-		} catch (error) {
-			console.error('Error during manual check:', sanitizeErrorMessage(
-				String(error),
-				this.settings.telegramBotToken,
-				this.settings.telegramChatId
-			));
+				),
+			);
 			new Notice('Error checking reminders. See console for details.');
 		}
 	}
@@ -305,29 +373,34 @@ export default class ReminderTelegramPlugin extends Plugin {
 				void (async (): Promise<void> => {
 					try {
 						this.notificationState = await checkDeadlines(
-								this.taskIndex.getAllTasks(),
+							this.taskIndex.getAllTasks(),
+							this.settings.telegramBotToken,
+							this.settings.telegramChatId,
+							this.notificationState,
+							this.settings.bulkMessageTemplate,
+							this.settings.individualMessageTemplate,
+							this.settings.useMarkdownFormatting,
+							this.getCheckOptions(),
+							this.settings.upcomingBulkMessageTemplate,
+							this.settings.upcomingMessageTemplate,
+						);
+						await this.saveSettings();
+						this.updateStatusBarText(
+							'Last check: ' + new Date().toLocaleTimeString(),
+						);
+					} catch (error) {
+						console.error(
+							'Error during periodic check:',
+							sanitizeErrorMessage(
+								String(error),
 								this.settings.telegramBotToken,
 								this.settings.telegramChatId,
-								this.notificationState,
-								this.settings.bulkMessageTemplate,
-								this.settings.individualMessageTemplate,
-								this.settings.useMarkdownFormatting,
-								this.getCheckOptions(),
-								this.settings.upcomingBulkMessageTemplate,
-								this.settings.upcomingMessageTemplate
-							);
-						await this.saveSettings();
-						this.updateStatusBarText('Last check: ' + new Date().toLocaleTimeString());
-					} catch (error) {
-						console.error('Error during periodic check:', sanitizeErrorMessage(
-							String(error),
-							this.settings.telegramBotToken,
-							this.settings.telegramChatId
-						));
+							),
+						);
 					}
 				})();
 			},
-			this.settings.checkIntervalMinutes * 60 * 1000
+			this.settings.checkIntervalMinutes * 60 * 1000,
 		);
 
 		this.registerInterval(intervalId);
@@ -338,7 +411,9 @@ export default class ReminderTelegramPlugin extends Plugin {
 		// Re-checking on every settings change would spam notifications.
 	}
 
-	async updateSettings(newSettings: Partial<ReminderTelegramSettings>): Promise<void> {
+	async updateSettings(
+		newSettings: Partial<ReminderTelegramSettings>,
+	): Promise<void> {
 		this.settings = { ...this.settings, ...newSettings };
 		await this.saveSettings();
 		this.taskIndex.updateScanSettings(this.getScanSettings());
@@ -350,7 +425,9 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 	private updateStatusBarText(message: string = ''): void {
 		if (this.statusBarItemEl) {
-			const textSpan = this.statusBarItemEl.querySelector('span:not(.reminder-telegram-icon)');
+			const textSpan = this.statusBarItemEl.querySelector(
+				'span:not(.reminder-telegram-icon)',
+			);
 			if (textSpan) {
 				textSpan.textContent = message || 'Reminder Telegram';
 			}
@@ -376,7 +453,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 			tasks,
 			this.settings.leadTimeMinutes,
 			this.settings.atTimeCatchUpWindowMinutes,
-			this.notificationState.notifiedAtTimeInstances
+			this.notificationState.notifiedAtTimeInstances,
 		);
 	}
 
@@ -416,7 +493,7 @@ export default class ReminderTelegramPlugin extends Plugin {
 
 		try {
 			const tasks = this.taskIndex.getAllTasks();
-			const {sendResults, state} = await dispatchAtTimeReminders(
+			const { sendResults, state } = await dispatchAtTimeReminders(
 				tasks,
 				new Date(),
 				this.settings.atTimeCatchUpWindowMinutes,
@@ -426,20 +503,25 @@ export default class ReminderTelegramPlugin extends Plugin {
 					chatId: this.settings.telegramChatId,
 					state: this.notificationState,
 					individualTemplate: this.settings.individualMessageTemplate,
-					useMarkdown: this.settings.useMarkdownFormatting
-				}
+					useMarkdown: this.settings.useMarkdownFormatting,
+				},
 			);
 			this.notificationState = state;
-			if (sendResults.some(r => r.success)) {
+			if (sendResults.some((r) => r.success)) {
 				await this.saveSettings();
-				this.updateStatusBarText('Last at-time: ' + new Date().toLocaleTimeString());
+				this.updateStatusBarText(
+					'Last at-time: ' + new Date().toLocaleTimeString(),
+				);
 			}
 		} catch (error) {
-			console.error('Error during at-time wake:', sanitizeErrorMessage(
-				String(error),
-				this.settings.telegramBotToken,
-				this.settings.telegramChatId
-			));
+			console.error(
+				'Error during at-time wake:',
+				sanitizeErrorMessage(
+					String(error),
+					this.settings.telegramBotToken,
+					this.settings.telegramChatId,
+				),
+			);
 		} finally {
 			// Always rearm so a thrown dispatch doesn't leave the
 			// scheduler with no upcoming wake. Rearm is cheap (no
@@ -458,18 +540,23 @@ export default class ReminderTelegramPlugin extends Plugin {
 	 * next scan (box open, date advanced) — so the modify event this write
 	 * triggers does not loop.
 	 */
-	private async applyRecurringReschedules(file: TFile, before: VaultTask[]): Promise<void> {
+	private async applyRecurringReschedules(
+		file: TFile,
+		before: VaultTask[],
+	): Promise<void> {
 		if (!this.settings.recurringTasksEnabled) return;
 		const after = this.taskIndex.getTasksForFile(file.path);
 		const edits = computeCompletionReschedules(before, after);
 		if (edits.length === 0) return;
 
 		try {
-			await this.app.vault.process(file, (content) => applyRescheduleEdits(content, edits));
+			await this.app.vault.process(file, (content) =>
+				applyRescheduleEdits(content, edits),
+			);
 		} catch (error) {
 			console.error(
 				'Error rescheduling recurring tasks in ' + file.path + ':',
-				sanitizeErrorMessage(String(error))
+				sanitizeErrorMessage(String(error)),
 			);
 		}
 	}
@@ -484,13 +571,18 @@ export default class ReminderTelegramPlugin extends Plugin {
 			leaf.detach();
 		} else {
 			// Create a new sidebar leaf in the right sidebar (Obsidian 1.7.2+)
-			const rightLeaf = await this.app.workspace.ensureSideLeaf(SIDEBAR_VIEW_TYPE, 'right');
+			const rightLeaf = await this.app.workspace.ensureSideLeaf(
+				SIDEBAR_VIEW_TYPE,
+				'right',
+			);
 			void this.app.workspace.revealLeaf(rightLeaf);
 		}
 	}
 
 	getTasksForSidebar(): VaultTask[] {
-		return this.taskIndex.getAllTasks().filter(t => !t.completed && t.deadline);
+		return this.taskIndex
+			.getAllTasks()
+			.filter((t) => !t.completed && t.deadline);
 	}
 
 	getUpcomingDaysAhead(): number {
@@ -511,17 +603,30 @@ export default class ReminderTelegramPlugin extends Plugin {
 		// Scroll to the relevant line
 		const view = leaf.view;
 		if (view instanceof MarkdownView && view.editor) {
-			const targetLine = task.source === 'frontmatter'
-				? (task.headingLineNumber ? task.headingLineNumber - 1 : 0)
-				: (task.lineNumber ? task.lineNumber - 1 : 0);
-			view.editor.setCursor({line: targetLine, ch: 0});
-			view.editor.scrollIntoView({from: {line: targetLine, ch: 0}, to: {line: targetLine, ch: 0}}, true);
+			const targetLine =
+				task.source === 'frontmatter'
+					? task.headingLineNumber
+						? task.headingLineNumber - 1
+						: 0
+					: task.lineNumber
+						? task.lineNumber - 1
+						: 0;
+			view.editor.setCursor({ line: targetLine, ch: 0 });
+			view.editor.scrollIntoView(
+				{
+					from: { line: targetLine, ch: 0 },
+					to: { line: targetLine, ch: 0 },
+				},
+				true,
+			);
 		}
 	}
 
 	/** Called by vault event handlers to notify all registered sidebar views. */
 	private notifySidebarViews(): void {
-		for (const leaf of this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE)) {
+		for (const leaf of this.app.workspace.getLeavesOfType(
+			SIDEBAR_VIEW_TYPE,
+		)) {
 			const view = leaf.view;
 			if (view instanceof ReminderTelegramSidebarView) {
 				view.refresh();

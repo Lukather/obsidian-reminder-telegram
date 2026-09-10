@@ -1,7 +1,7 @@
 import tseslint from 'typescript-eslint';
-import obsidianmd from "eslint-plugin-obsidianmd";
-import globals from "globals";
-import { globalIgnores } from "eslint/config";
+import obsidianmd from 'eslint-plugin-obsidianmd';
+import globals from 'globals';
+import { globalIgnores } from 'eslint/config';
 
 export default tseslint.config(
 	{
@@ -13,7 +13,7 @@ export default tseslint.config(
 			parserOptions: {
 				project: ['./tsconfig.eslint.json'],
 				tsconfigRootDir: import.meta.dirname,
-				extraFileExtensions: ['.json']
+				extraFileExtensions: ['.json'],
 			},
 		},
 	},
@@ -50,13 +50,22 @@ export default tseslint.config(
 			'import/no-nodejs-modules': 'off',
 		},
 	},
+	// lint-staged is intentionally used for the pre-commit feedback loop
+	// (format + eslint --fix on staged files).
+	{
+		files: ['package.json'],
+		rules: {
+			'depend/ban-dependencies': 'off',
+		},
+	},
 	globalIgnores([
-		"node_modules",
-		"dist",
-		"esbuild.config.mjs",
-		"eslint.config.js",
-		"version-bump.mjs",
-		"versions.json",
-		"main.js",
+		'node_modules',
+		'dist',
+		'esbuild.config.mjs',
+		'eslint.config.js',
+		'eslint.config.mts',
+		'version-bump.mjs',
+		'versions.json',
+		'main.js',
 	]),
 );

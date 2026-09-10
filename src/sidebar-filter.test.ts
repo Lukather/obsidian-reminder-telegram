@@ -191,7 +191,7 @@ describe('applyTagFilter()', () => {
 	it('filters to tasks matching the tag', () => {
 		const result = applyTagFilter(categorized, 'work');
 		expect(result.overdue).toHaveLength(2);
-		expect(result.overdue.every(t => t.tags.includes('work'))).toBe(true);
+		expect(result.overdue.every((t) => t.tags.includes('work'))).toBe(true);
 	});
 
 	it('filters to tasks matching a different tag', () => {

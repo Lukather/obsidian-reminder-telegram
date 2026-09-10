@@ -3,78 +3,115 @@
 ## Changes Made
 
 ### 1. Renamed "Bulk message template" to "Multi-task digest"
+
 - **Before**: "Bulk message template"
 - **After**: "Multi-task digest"
 - **Reason**: More intuitive naming that better conveys the purpose
 
 ### 2. Added Clickable Variable Chips
+
 - **Implementation**: Added `renderVariableChips()` method that creates clickable buttons for each variable
 - **Variables for Multi-task digest**: `{count}`, `{tasks}`
 - **Variables for Individual template**: `{taskName}`, `{fileName}`, `{deadline}`, `{filePath}`, `{taskId}`
 - **Functionality**: Clicking a chip inserts the variable at the cursor position in the textarea
 
 ### 3. Added Textarea for Test Message Template
+
 - **Before**: Single-line text input
 - **After**: Multi-line textarea with same styling as other templates
 - **Benefit**: Easier to compose multi-line test messages
 
 ### 4. Added Character Counters
+
 - **Implementation**: `renderCharacterCounter()` method
 - **Features**:
-  - Shows current character count vs Telegram's 4096 character limit
-  - Shows percentage used
-  - Turns red when approaching 80% of limit
-  - Updates in real-time as user types
+    - Shows current character count vs Telegram's 4096 character limit
+    - Shows percentage used
+    - Turns red when approaching 80% of limit
+    - Updates in real-time as user types
 
 ### 5. Added Live Preview Panel
+
 - **Implementation**: `renderPreviewPanel()` and `updateTemplatePreviews()` methods
 - **Features**:
-  - Shows real-time preview of all three templates
-  - Individual task preview with sample data
-  - Multi-task digest preview with sample tasks
-  - Test notification preview
-  - Toggleable with "Live preview" setting
-  - Error handling for template rendering issues
+    - Shows real-time preview of all three templates
+    - Individual task preview with sample data
+    - Multi-task digest preview with sample tasks
+    - Test notification preview
+    - Toggleable with "Live preview" setting
+    - Error handling for template rendering issues
 
 ### 6. Enhanced Markdown Formatting Description
+
 - **Before**: "Enable Telegram Markdown formatting for messages."
-- **After**: "Enable Telegram Markdown formatting for messages. Example: *bold*, _italic_, [links](https://example.com)"
+- **After**: "Enable Telegram Markdown formatting for messages. Example: _bold_, _italic_, [links](https://example.com)"
 - **Benefit**: Users can see what formatting options are available
 
 ### 7. Fixed Documentation Bug
+
 - **Issue**: `{filePath}` variable was missing from the bulk template documentation
 - **Fix**: Updated description to include all available variables
 
 ## CSS Styles Added
 
 ### Variable Chips
+
 ```css
-.reminder-telegram-variable-chips { /* Container for chips */ }
-.reminder-telegram-variable-chip { /* Individual chip styling */ }
-.reminder-telegram-variable-chip:hover { /* Hover effect */ }
+.reminder-telegram-variable-chips {
+	/* Container for chips */
+}
+.reminder-telegram-variable-chip {
+	/* Individual chip styling */
+}
+.reminder-telegram-variable-chip:hover {
+	/* Hover effect */
+}
 ```
 
 ### Character Counters
+
 ```css
-.reminder-telegram-character-counter { /* Counter container */ }
-.reminder-telegram-character-warning { /* Warning state */ }
+.reminder-telegram-character-counter {
+	/* Counter container */
+}
+.reminder-telegram-character-warning {
+	/* Warning state */
+}
 ```
 
 ### Preview Panel
+
 ```css
-.reminder-telegram-preview-container { /* Main container */ }
-.reminder-telegram-preview-header { /* Header styling */ }
-.reminder-telegram-preview-title { /* Title styling */ }
-.reminder-telegram-preview-section { /* Section styling */ }
-.reminder-telegram-preview-label { /* Label styling */ }
-.reminder-telegram-preview-content { /* Content area */ }
-.reminder-telegram-preview-placeholder { /* Placeholder text */ }
-.reminder-telegram-preview-error { /* Error state */ }
+.reminder-telegram-preview-container {
+	/* Main container */
+}
+.reminder-telegram-preview-header {
+	/* Header styling */
+}
+.reminder-telegram-preview-title {
+	/* Title styling */
+}
+.reminder-telegram-preview-section {
+	/* Section styling */
+}
+.reminder-telegram-preview-label {
+	/* Label styling */
+}
+.reminder-telegram-preview-content {
+	/* Content area */
+}
+.reminder-telegram-preview-placeholder {
+	/* Placeholder text */
+}
+.reminder-telegram-preview-error {
+	/* Error state */
+}
 ```
 
 ## New Settings Property
 
 ### livePreviewEnabled
+
 - **Type**: `boolean`
 - **Default**: `true`
 - **Purpose**: Controls whether live previews are shown
@@ -83,6 +120,7 @@
 ## Template Preview Examples
 
 ### Individual Task Preview
+
 ```
 Task Reminder
 
@@ -92,6 +130,7 @@ Deadline: 2024-12-31
 ```
 
 ### Multi-task Digest Preview
+
 ```
 You have 2 task(s) due:
 
@@ -100,6 +139,7 @@ Task: Review code changes (2024-12-28) - Code.md
 ```
 
 ### Test Notification Preview
+
 ```
 Test notification from reminder Telegram plugin
 ```

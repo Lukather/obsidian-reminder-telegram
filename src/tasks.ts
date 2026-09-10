@@ -1,5 +1,5 @@
-import {App} from 'obsidian';
-import {sanitizeErrorMessage} from './utils';
+import { App } from 'obsidian';
+import { sanitizeErrorMessage } from './utils';
 
 // Types
 
@@ -98,23 +98,31 @@ interface FrontmatterData {
 // `@`-prefixed dates out of this generic path: `@` dates are owned by
 // REMINDER_DATE_PATTERNS below (gated by the reminderSyntaxEnabled toggle),
 // so they must never leak in as date-only deadlines when the feature is off.
-const DATE_REGEX = /(?<!@)\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/;
+const DATE_REGEX =
+	/(?<!@)\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/;
 
 export function parseDate(dateString: string): Deadline | null {
 	if (!dateString) return null;
 
 	if (/^\d{4}-\d{2}-\d{2}[ T]\d/.test(dateString)) {
 		// Normalize "YYYY-MM-DD HH:MM[:SS]" → "YYYY-MM-DDTHH:MM[:SS]" for the Date constructor.
-		const isoString = dateString.replace(/^(\d{4}-\d{2}-\d{2}) (\d{1,2}:\d{2}(?::\d{2})?)/, '$1T$2');
+		const isoString = dateString.replace(
+			/^(\d{4}-\d{2}-\d{2}) (\d{1,2}:\d{2}(?::\d{2})?)/,
+			'$1T$2',
+		);
 		const date = new Date(isoString);
 		if (!isNaN(date.getTime())) {
-			return {type: 'datetime', date};
+			return { type: 'datetime', date };
 		}
 	}
 
 	if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-		const [year, month, day] = dateString.split('-').map(Number) as [number, number, number];
-		return {type: 'date-only', year, month, day};
+		const [year, month, day] = dateString.split('-').map(Number) as [
+			number,
+			number,
+			number,
+		];
+		return { type: 'date-only', year, month, day };
 	}
 
 	if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(dateString)) {
@@ -126,13 +134,13 @@ export function parseDate(dateString: string): Deadline | null {
 			const month = Number(parts[0]);
 			const day = Number(parts[1]);
 			if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-				return {type: 'date-only', year, month, day};
+				return { type: 'date-only', year, month, day };
 			}
 
 			const day2 = Number(parts[0]);
 			const month2 = Number(parts[1]);
 			if (month2 >= 1 && month2 <= 12 && day2 >= 1 && day2 <= 31) {
-				return {type: 'date-only', year, month: month2, day: day2};
+				return { type: 'date-only', year, month: month2, day: day2 };
 			}
 		}
 	}
@@ -142,12 +150,20 @@ export function parseDate(dateString: string): Deadline | null {
 
 // Deadline helpers
 
-export function deadlineToCalendarDay(deadline: Deadline): {year: number; month: number; day: number} {
+export function deadlineToCalendarDay(deadline: Deadline): {
+	year: number;
+	month: number;
+	day: number;
+} {
 	if (deadline.type === 'date-only') {
-		return {year: deadline.year, month: deadline.month, day: deadline.day};
+		return {
+			year: deadline.year,
+			month: deadline.month,
+			day: deadline.day,
+		};
 	}
 	const d = deadline.date;
-	return {year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate()};
+	return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
 }
 
 export function deadlineToDateString(deadline: Deadline | null): string | null {
@@ -158,32 +174,48 @@ export function deadlineToDateString(deadline: Deadline | null): string | null {
 	return `${cd.year}-${monthStr.length < 2 ? '0' : ''}${monthStr}-${dayStr.length < 2 ? '0' : ''}${dayStr}`;
 }
 
-export function compareCalendarDays(a: {year: number; month: number; day: number}, b: {year: number; month: number; day: number}): number {
+export function compareCalendarDays(
+	a: { year: number; month: number; day: number },
+	b: { year: number; month: number; day: number },
+): number {
 	if (a.year !== b.year) return a.year - b.year;
 	if (a.month !== b.month) return a.month - b.month;
 	return a.day - b.day;
 }
 
-export function addDaysToCalendarDay(day: {year: number; month: number; day: number}, days: number): {year: number; month: number; day: number} {
+export function addDaysToCalendarDay(
+	day: { year: number; month: number; day: number },
+	days: number,
+): { year: number; month: number; day: number } {
 	const d = new Date(day.year, day.month - 1, day.day);
 	d.setDate(d.getDate() + days);
-	return {year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate()};
+	return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
 }
 
-export function taskDeadlineOnCalendarDay(deadline: Deadline, referenceDate: Date): boolean {
+export function taskDeadlineOnCalendarDay(
+	deadline: Deadline,
+	referenceDate: Date,
+): boolean {
 	const dl = deadlineToCalendarDay(deadline);
-	return dl.year === referenceDate.getFullYear()
-		&& dl.month === referenceDate.getMonth() + 1
-		&& dl.day === referenceDate.getDate();
+	return (
+		dl.year === referenceDate.getFullYear() &&
+		dl.month === referenceDate.getMonth() + 1 &&
+		dl.day === referenceDate.getDate()
+	);
 }
 
-export function taskDeadlineOverdueBeforeDay(deadline: Deadline, referenceDate: Date): boolean {
+export function taskDeadlineOverdueBeforeDay(
+	deadline: Deadline,
+	referenceDate: Date,
+): boolean {
 	const dl = deadlineToCalendarDay(deadline);
-	return compareCalendarDays(dl, {
-		year: referenceDate.getFullYear(),
-		month: referenceDate.getMonth() + 1,
-		day: referenceDate.getDate(),
-	}) < 0;
+	return (
+		compareCalendarDays(dl, {
+			year: referenceDate.getFullYear(),
+			month: referenceDate.getMonth() + 1,
+			day: referenceDate.getDate(),
+		}) < 0
+	);
 }
 
 // Inline task parsing
@@ -239,14 +271,24 @@ function timeStringFromDate(date: Date): string {
 	return `${h.length < 2 ? '0' : ''}${h}:${m.length < 2 ? '0' : ''}${m}`;
 }
 
-function extractDeadline(text: string, options?: DeadlineParseOptions): {deadline: Deadline | null; match: string | null; timeString: string | null} {
+function extractDeadline(
+	text: string,
+	options?: DeadlineParseOptions,
+): {
+	deadline: Deadline | null;
+	match: string | null;
+	timeString: string | null;
+} {
 	for (const pattern of OBSIDIAN_DATE_PATTERNS) {
 		const match = text.match(pattern);
 		if (match && match[1]) {
 			const deadline = parseDate(match[1]);
 			if (deadline) {
-				const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
-				return {deadline, match: match[0], timeString};
+				const timeString =
+					deadline.type === 'datetime'
+						? timeStringFromDate(deadline.date)
+						: null;
+				return { deadline, match: match[0], timeString };
 			}
 		}
 	}
@@ -256,8 +298,11 @@ function extractDeadline(text: string, options?: DeadlineParseOptions): {deadlin
 			if (match && match[1]) {
 				const deadline = parseDate(match[1]);
 				if (deadline) {
-					const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
-					return {deadline, match: match[0], timeString};
+					const timeString =
+						deadline.type === 'datetime'
+							? timeStringFromDate(deadline.date)
+							: null;
+					return { deadline, match: match[0], timeString };
 				}
 			}
 		}
@@ -271,8 +316,11 @@ function extractDeadline(text: string, options?: DeadlineParseOptions): {deadlin
 				const raw = match[2] ? `${match[1]} ${match[2]}` : match[1];
 				const deadline = parseDate(raw);
 				if (deadline) {
-					const timeString = deadline.type === 'datetime' ? timeStringFromDate(deadline.date) : null;
-					return {deadline, match: match[0], timeString};
+					const timeString =
+						deadline.type === 'datetime'
+							? timeStringFromDate(deadline.date)
+							: null;
+					return { deadline, match: match[0], timeString };
 				}
 			}
 		}
@@ -280,9 +328,10 @@ function extractDeadline(text: string, options?: DeadlineParseOptions): {deadlin
 	const dateMatch = text.match(DATE_REGEX);
 	if (dateMatch && dateMatch[1]) {
 		const deadline = parseDate(dateMatch[1]);
-		if (deadline) return {deadline, match: dateMatch[0], timeString: null};
+		if (deadline)
+			return { deadline, match: dateMatch[0], timeString: null };
 	}
-	return {deadline: null, match: null, timeString: null};
+	return { deadline: null, match: null, timeString: null };
 }
 
 function isTaskLine(line: string): boolean {
@@ -294,7 +343,7 @@ function hashTaskContent(text: string, deadlineMatch: string | null): string {
 	let hash = 0;
 	for (let i = 0; i < contentToHash.length; i++) {
 		const char = contentToHash.charCodeAt(i);
-		hash = ((hash << 5) - hash) + char;
+		hash = (hash << 5) - hash + char;
 		hash = hash & hash;
 	}
 	return Math.abs(hash).toString(36).substring(0, 8);
@@ -304,7 +353,7 @@ export function parseTaskLine(
 	line: string,
 	filePath: string,
 	lineNumber: number,
-	options?: DeadlineParseOptions
+	options?: DeadlineParseOptions,
 ): VaultTask | null {
 	if (!isTaskLine(line)) return null;
 	const completed = line.includes('[x]') || line.includes('[X]');
@@ -312,11 +361,14 @@ export function parseTaskLine(
 	const text = textMatch && textMatch[1] ? textMatch[1].trim() : '';
 	const deadlineInfo = extractDeadline(text, options);
 	const fileName = filePath.split('/').pop() || filePath;
-	const recurrence = options?.recurringTasksEnabled === false ? null : parseRecurrence(text);
+	const recurrence =
+		options?.recurringTasksEnabled === false ? null : parseRecurrence(text);
 
 	// Stable ID: file + deadline + content hash. Line number deliberately excluded
 	// so that adding lines above the task does not trigger re-notification.
-	const deadlinePart = deadlineInfo.deadline ? deadlineToDateString(deadlineInfo.deadline) : '';
+	const deadlinePart = deadlineInfo.deadline
+		? deadlineToDateString(deadlineInfo.deadline)
+		: '';
 	const contentHash = hashTaskContent(text, deadlineInfo.match);
 	const stableId = `inline:${filePath}:${deadlinePart}:${contentHash}`;
 
@@ -370,7 +422,7 @@ function formatFrontmatterSummary(frontmatter: FrontmatterData): string {
 export function parseFrontmatterTasksFromCache(
 	frontmatter: FrontmatterData | undefined,
 	content: string,
-	filePath: string
+	filePath: string,
 ): VaultTask[] {
 	const tasks: VaultTask[] = [];
 	if (!frontmatter) return tasks;
@@ -383,7 +435,11 @@ export function parseFrontmatterTasksFromCache(
 
 	const fileLines = content.split('\n');
 	const endLine = findFrontmatterEndLine(content);
-	for (let i = endLine + 1; i < Math.min(fileLines.length, endLine + 10); i++) {
+	for (
+		let i = endLine + 1;
+		i < Math.min(fileLines.length, endLine + 10);
+		i++
+	) {
 		const line = fileLines[i]?.trim();
 		if (line?.startsWith('#')) {
 			taskText = line.replace(/^#+\s*/, '').trim();
@@ -393,7 +449,9 @@ export function parseFrontmatterTasksFromCache(
 	}
 
 	const completedStatuses = ['done', 'completed', 'cancelled', 'archived'];
-	const isCompleted = completedStatuses.includes(frontmatter.status?.toLowerCase() || '') || !!frontmatter.completedDate;
+	const isCompleted =
+		completedStatuses.includes(frontmatter.status?.toLowerCase() || '') ||
+		!!frontmatter.completedDate;
 
 	const deadlineString = frontmatter.scheduled || frontmatter.due || null;
 	const deadline = deadlineString ? parseDate(deadlineString) : null;
@@ -405,7 +463,10 @@ export function parseFrontmatterTasksFromCache(
 		const tags: string[] = Array.isArray(rawTags)
 			? rawTags.filter((t): t is string => typeof t === 'string')
 			: typeof rawTags === 'string'
-				? rawTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+				? rawTags
+						.split(',')
+						.map((t: string) => t.trim())
+						.filter(Boolean)
 				: [];
 
 		tasks.push({
@@ -417,7 +478,10 @@ export function parseFrontmatterTasksFromCache(
 			completed: isCompleted,
 			deadline,
 			deadlineString,
-			timeString: deadline?.type === 'datetime' ? timeStringFromDate(deadline.date) : null,
+			timeString:
+				deadline?.type === 'datetime'
+					? timeStringFromDate(deadline.date)
+					: null,
 			isAtTime: deadline?.type === 'datetime',
 			recurrence: null,
 			originalLine: formatFrontmatterSummary(frontmatter),
@@ -435,7 +499,8 @@ function isFileInFolder(filePath: string, targetFolder: string): boolean {
 	const normalizedPath = filePath.replace(/^\/|\/$/g, '');
 
 	return (
-		normalizedPath.startsWith(normalizedTarget + '/') || normalizedPath === normalizedTarget
+		normalizedPath.startsWith(normalizedTarget + '/') ||
+		normalizedPath === normalizedTarget
 	);
 }
 
@@ -470,7 +535,11 @@ function buildCodeBlockMap(lines: string[]): boolean[] {
 			depth = 1;
 			fenceChar = firstChar;
 			fenceLength = len;
-		} else if (firstChar === fenceChar && len >= fenceLength && trailing === '') {
+		} else if (
+			firstChar === fenceChar &&
+			len >= fenceLength &&
+			trailing === ''
+		) {
 			// Closing fence: same char, at least as long, no extra content.
 			depth = 0;
 		}
@@ -486,7 +555,7 @@ export function parseInlineTasks(
 	content: string,
 	filePath: string,
 	startLine: number = 0,
-	options?: DeadlineParseOptions
+	options?: DeadlineParseOptions,
 ): VaultTask[] {
 	const tasks: VaultTask[] = [];
 	const lines = content.split('\n');
@@ -505,11 +574,16 @@ export function parseInlineTasks(
 
 export async function scanVaultForTasks(
 	app: App,
-	scanSettings?: ScanSettings
+	scanSettings?: ScanSettings,
 ): Promise<VaultTask[]> {
 	const tasks: VaultTask[] = [];
-	const settings = scanSettings || {scanMode: 'whole-vault', targetFolder: ''};
-	const files = app.vault.getFiles().filter(file => file.extension === 'md');
+	const settings = scanSettings || {
+		scanMode: 'whole-vault',
+		targetFolder: '',
+	};
+	const files = app.vault
+		.getFiles()
+		.filter((file) => file.extension === 'md');
 
 	for (const file of files) {
 		if (
@@ -524,18 +598,28 @@ export async function scanVaultForTasks(
 			const fileCache = app.metadataCache.getFileCache(file);
 			const frontmatter = fileCache?.frontmatter;
 
-			tasks.push(...parseFrontmatterTasksFromCache(frontmatter, content, file.path));
+			tasks.push(
+				...parseFrontmatterTasksFromCache(
+					frontmatter,
+					content,
+					file.path,
+				),
+			);
 
-			const endLine = fileCache?.frontmatterPosition?.end?.line ?? findFrontmatterEndLine(content);
-			tasks.push(...parseInlineTasks(content, file.path, endLine + 1, {
-				reminderSyntaxEnabled: settings.reminderSyntaxEnabled,
-				kanbanSyntaxEnabled: settings.kanbanSyntaxEnabled,
-				recurringTasksEnabled: settings.recurringTasksEnabled,
-			}));
+			const endLine =
+				fileCache?.frontmatterPosition?.end?.line ??
+				findFrontmatterEndLine(content);
+			tasks.push(
+				...parseInlineTasks(content, file.path, endLine + 1, {
+					reminderSyntaxEnabled: settings.reminderSyntaxEnabled,
+					kanbanSyntaxEnabled: settings.kanbanSyntaxEnabled,
+					recurringTasksEnabled: settings.recurringTasksEnabled,
+				}),
+			);
 		} catch (error) {
 			console.error(
 				`Error reading file ${file.path}:`,
-				sanitizeErrorMessage(String(error))
+				sanitizeErrorMessage(String(error)),
 			);
 		}
 	}
@@ -545,9 +629,12 @@ export async function scanVaultForTasks(
 // Filtering
 
 export function getDueTasks(tasks: VaultTask[], date: Date): VaultTask[] {
-	return tasks.filter(task => {
+	return tasks.filter((task) => {
 		if (!task.deadline || task.completed) return false;
-		return taskDeadlineOnCalendarDay(task.deadline, date) || taskDeadlineOverdueBeforeDay(task.deadline, date);
+		return (
+			taskDeadlineOnCalendarDay(task.deadline, date) ||
+			taskDeadlineOverdueBeforeDay(task.deadline, date)
+		);
 	});
 }
 
@@ -555,13 +642,17 @@ export function filterDueTasksByCheckFlags(
 	tasks: VaultTask[],
 	referenceDate: Date,
 	checkToday: boolean,
-	checkOverdue: boolean
+	checkOverdue: boolean,
 ): VaultTask[] {
 	if (checkToday && checkOverdue) return tasks;
-	return tasks.filter(task => {
+	return tasks.filter((task) => {
 		if (!task.deadline) return false;
-		return (checkToday && taskDeadlineOnCalendarDay(task.deadline, referenceDate))
-			|| (checkOverdue && taskDeadlineOverdueBeforeDay(task.deadline, referenceDate));
+		return (
+			(checkToday &&
+				taskDeadlineOnCalendarDay(task.deadline, referenceDate)) ||
+			(checkOverdue &&
+				taskDeadlineOverdueBeforeDay(task.deadline, referenceDate))
+		);
 	});
 }
 
@@ -582,30 +673,35 @@ export function filterDueTasksByCheckFlags(
 export function filterOverdueByCatchUpWindow(
 	tasks: VaultTask[],
 	referenceDate: Date,
-	windowMinutes: number
+	windowMinutes: number,
 ): VaultTask[] {
 	if (windowMinutes <= 0) return tasks;
 	const windowMs = windowMinutes * 60 * 1000;
 	const refMs = referenceDate.getTime();
-	const today: {year: number; month: number; day: number} = {
+	const today: { year: number; month: number; day: number } = {
 		year: referenceDate.getFullYear(),
 		month: referenceDate.getMonth() + 1,
 		day: referenceDate.getDate(),
 	};
-	return tasks.filter(task => {
+	return tasks.filter((task) => {
 		if (!task.deadline) return true;
 		const dl = deadlineToCalendarDay(task.deadline);
 		// Due today or later → never gated by the catch-up window.
 		if (compareCalendarDays(dl, today) >= 0) return true;
-		const missedAt = task.deadline.type === 'datetime'
-			? task.deadline.date.getTime()
-			// Date-only: the task becomes overdue when its day ends.
-			: new Date(dl.year, dl.month - 1, dl.day + 1).getTime();
+		const missedAt =
+			task.deadline.type === 'datetime'
+				? task.deadline.date.getTime()
+				: // Date-only: the task becomes overdue when its day ends.
+					new Date(dl.year, dl.month - 1, dl.day + 1).getTime();
 		return refMs - missedAt <= windowMs;
 	});
 }
 
-export function getUpcomingTasks(tasks: VaultTask[], date: Date, daysAhead: number = 7): VaultTask[] {
+export function getUpcomingTasks(
+	tasks: VaultTask[],
+	date: Date,
+	daysAhead: number = 7,
+): VaultTask[] {
 	if (daysAhead <= 0) return [];
 
 	const refDay = {
@@ -616,15 +712,20 @@ export function getUpcomingTasks(tasks: VaultTask[], date: Date, daysAhead: numb
 	const tomorrow = addDaysToCalendarDay(refDay, 1);
 	const futureEnd = addDaysToCalendarDay(refDay, daysAhead);
 
-	return tasks.filter(task => {
+	return tasks.filter((task) => {
 		if (!task.deadline || task.completed) return false;
 		const dl = deadlineToCalendarDay(task.deadline);
-		return compareCalendarDays(dl, tomorrow) >= 0 && compareCalendarDays(dl, futureEnd) <= 0;
+		return (
+			compareCalendarDays(dl, tomorrow) >= 0 &&
+			compareCalendarDays(dl, futureEnd) <= 0
+		);
 	});
 }
 
-export function getIncompleteTasksWithDeadlines(tasks: VaultTask[]): VaultTask[] {
-	return tasks.filter(task => !task.completed && task.deadline !== null);
+export function getIncompleteTasksWithDeadlines(
+	tasks: VaultTask[],
+): VaultTask[] {
+	return tasks.filter((task) => !task.completed && task.deadline !== null);
 }
 
 // Notification key
@@ -640,17 +741,28 @@ export function getTaskNotificationKey(task: VaultTask): string {
 
 /** 0=Sunday … 6=Saturday. Full names + common abbreviations.**/
 const WEEKDAY_NAMES: Record<string, number> = {
-	sunday: 0, sun: 0,
-	monday: 1, mon: 1,
-	tuesday: 2, tue: 2, tues: 2,
-	wednesday: 3, wed: 3,
-	thursday: 4, thu: 4, thur: 4, thurs: 4,
-	friday: 5, fri: 5,
-	saturday: 6, sat: 6,
+	sunday: 0,
+	sun: 0,
+	monday: 1,
+	mon: 1,
+	tuesday: 2,
+	tue: 2,
+	tues: 2,
+	wednesday: 3,
+	wed: 3,
+	thursday: 4,
+	thu: 4,
+	thur: 4,
+	thurs: 4,
+	friday: 5,
+	fri: 5,
+	saturday: 6,
+	sat: 6,
 };
 
 /** `🔁 every day | week [on <weekday>] | month | year` — case-insensitive keywords. */
-const RECURRENCE_PATTERN = /🔁\s+every\s+(day|week|month|year)(?:\s+on\s+([A-Za-z]+))?/i;
+const RECURRENCE_PATTERN =
+	/🔁\s+every\s+(day|week|month|year)(?:\s+on\s+([A-Za-z]+))?/i;
 
 /**
  * Parse `🔁 every …` recurrence syntax from a task line. Returns null when
@@ -693,7 +805,11 @@ interface CalendarDay {
  * result) so `every month` on the 31st stays on the 31st: Jan 31 → Feb 28 →
  * Mar 31 rather than drifting to the 28th.
  */
-function nthOccurrence(base: CalendarDay, recurrence: Recurrence, k: number): CalendarDay {
+function nthOccurrence(
+	base: CalendarDay,
+	recurrence: Recurrence,
+	k: number,
+): CalendarDay {
 	switch (recurrence.period) {
 		case 'day':
 			return addDaysToCalendarDay(base, k);
@@ -702,7 +818,11 @@ function nthOccurrence(base: CalendarDay, recurrence: Recurrence, k: number): Ca
 				return addDaysToCalendarDay(base, 7 * k);
 			}
 			// First matching weekday strictly after base, then every 7 days.
-			const baseWeekday = new Date(base.year, base.month - 1, base.day).getDay();
+			const baseWeekday = new Date(
+				base.year,
+				base.month - 1,
+				base.day,
+			).getDay();
 			let delta = recurrence.weekday - baseWeekday;
 			if (delta <= 0) delta += 7;
 			return addDaysToCalendarDay(base, delta + 7 * (k - 1));
@@ -711,18 +831,34 @@ function nthOccurrence(base: CalendarDay, recurrence: Recurrence, k: number): Ca
 			const total = base.month - 1 + k; // 0-based
 			const year = base.year + Math.floor(total / 12);
 			const month = (total % 12) + 1;
-			return {year, month, day: Math.min(base.day, daysInMonth(year, month))};
+			return {
+				year,
+				month,
+				day: Math.min(base.day, daysInMonth(year, month)),
+			};
 		}
 		case 'year': {
 			const year = base.year + k;
-			return {year, month: base.month, day: Math.min(base.day, daysInMonth(year, base.month))};
+			return {
+				year,
+				month: base.month,
+				day: Math.min(base.day, daysInMonth(year, base.month)),
+			};
 		}
 	}
 }
 
-function buildDeadlineForCalendarDay(original: Deadline, day: CalendarDay): Deadline {
+function buildDeadlineForCalendarDay(
+	original: Deadline,
+	day: CalendarDay,
+): Deadline {
 	if (original.type === 'date-only') {
-		return {type: 'date-only', year: day.year, month: day.month, day: day.day};
+		return {
+			type: 'date-only',
+			year: day.year,
+			month: day.month,
+			day: day.day,
+		};
 	}
 	const t = original.date;
 	return {
@@ -734,7 +870,7 @@ function buildDeadlineForCalendarDay(original: Deadline, day: CalendarDay): Dead
 			t.getHours(),
 			t.getMinutes(),
 			t.getSeconds(),
-			t.getMilliseconds()
+			t.getMilliseconds(),
 		),
 	};
 }
@@ -749,7 +885,7 @@ function buildDeadlineForCalendarDay(original: Deadline, day: CalendarDay): Dead
 export function computeNextOccurrence(
 	deadline: Deadline,
 	recurrence: Recurrence,
-	now: Date = new Date()
+	now: Date = new Date(),
 ): Deadline | null {
 	const base = deadlineToCalendarDay(deadline);
 	const today: CalendarDay = {
@@ -795,14 +931,19 @@ export interface NextOccurrenceLine {
  */
 export function buildNextOccurrenceLine(
 	task: VaultTask,
-	now: Date = new Date()
+	now: Date = new Date(),
 ): NextOccurrenceLine | null {
 	if (!task.deadline || !task.recurrence || !task.deadlineString) return null;
 	const next = computeNextOccurrence(task.deadline, task.recurrence, now);
 	if (!next) return null;
-	const nextToken = replaceDateInToken(task.deadlineString, deadlineToDateString(next)!);
-	const line = uncheckLine(task.originalLine.replace(task.deadlineString, nextToken));
-	return {line, deadline: next};
+	const nextToken = replaceDateInToken(
+		task.deadlineString,
+		deadlineToDateString(next)!,
+	);
+	const line = uncheckLine(
+		task.originalLine.replace(task.deadlineString, nextToken),
+	);
+	return { line, deadline: next };
 }
 
 export interface RescheduleEdit {
@@ -823,9 +964,9 @@ export interface RescheduleEdit {
 export function computeCompletionReschedules(
 	before: VaultTask[],
 	after: VaultTask[],
-	now: Date = new Date()
+	now: Date = new Date(),
 ): RescheduleEdit[] {
-	const afterById = new Map(after.map(t => [t.id, t]));
+	const afterById = new Map(after.map((t) => [t.id, t]));
 	const edits: RescheduleEdit[] = [];
 	for (const oldTask of before) {
 		if (oldTask.completed || !oldTask.recurrence) continue;
@@ -849,11 +990,18 @@ export function computeCompletionReschedules(
  * Apply reschedule edits to file content. Edits whose line no longer matches
  * (concurrent edits shifting line numbers) are skipped defensively.
  */
-export function applyRescheduleEdits(content: string, edits: RescheduleEdit[]): string {
+export function applyRescheduleEdits(
+	content: string,
+	edits: RescheduleEdit[],
+): string {
 	const lines = content.split('\n');
 	for (const edit of edits) {
 		const index = edit.lineNumber - 1;
-		if (index >= 0 && index < lines.length && lines[index] === edit.oldLine) {
+		if (
+			index >= 0 &&
+			index < lines.length &&
+			lines[index] === edit.oldLine
+		) {
 			lines[index] = edit.newLine;
 		}
 	}

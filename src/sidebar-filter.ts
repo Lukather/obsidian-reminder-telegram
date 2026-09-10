@@ -25,7 +25,7 @@ export interface SidebarFilterState {
 export function categorizeTasks(
 	tasks: VaultTask[],
 	referenceDate: Date,
-	daysAhead: number
+	daysAhead: number,
 ): CategorizedTasks {
 	const refDay = {
 		year: referenceDate.getFullYear(),
@@ -56,7 +56,7 @@ export function categorizeTasks(
 		}
 	}
 
-	return {overdue, dueToday, upcoming};
+	return { overdue, dueToday, upcoming };
 }
 
 /**
@@ -68,7 +68,7 @@ export function categorizeTasks(
 export function applyTimeScopeFilter(
 	categorized: CategorizedTasks,
 	scope: TimeScopeFilter,
-	daysAhead: number
+	daysAhead: number,
 ): CategorizedTasks {
 	if (scope === 'none') return categorized;
 
@@ -84,15 +84,24 @@ export function applyTimeScopeFilter(
 	if (daysAhead <= 7) return categorized;
 
 	const now = new Date();
-	const refDay = {year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate()};
+	const refDay = {
+		year: now.getFullYear(),
+		month: now.getMonth() + 1,
+		day: now.getDate(),
+	};
 	const weekEnd = addDaysToCalendarDay(refDay, 7);
 
 	return {
 		overdue: categorized.overdue,
 		dueToday: categorized.dueToday,
-		upcoming: categorized.upcoming.filter(task => {
+		upcoming: categorized.upcoming.filter((task) => {
 			if (!task.deadline) return false;
-			return compareCalendarDays(deadlineToCalendarDay(task.deadline), weekEnd) <= 0;
+			return (
+				compareCalendarDays(
+					deadlineToCalendarDay(task.deadline),
+					weekEnd,
+				) <= 0
+			);
 		}),
 	};
 }
@@ -102,7 +111,7 @@ export function applyTimeScopeFilter(
  */
 export function applyTagFilter(
 	categorized: CategorizedTasks,
-	tag: string | null
+	tag: string | null,
 ): CategorizedTasks {
 	if (!tag) return categorized;
 	const matches = (task: VaultTask): boolean => task.tags.includes(tag);
@@ -130,7 +139,10 @@ export function collectAllTags(tasks: VaultTask[]): string[] {
  * Format a deadline as a friendly relative string.
  * Examples: "Today", "Yesterday", "Tue", "in 3 days"
  */
-export function formatRelativeDate(deadline: Deadline, referenceDate: Date): string {
+export function formatRelativeDate(
+	deadline: Deadline,
+	referenceDate: Date,
+): string {
 	const dl = deadlineToCalendarDay(deadline);
 	const refDay = {
 		year: referenceDate.getFullYear(),
@@ -143,7 +155,9 @@ export function formatRelativeDate(deadline: Deadline, referenceDate: Date): str
 	if (cmp < 0) {
 		const past = new Date(refDay.year, refDay.month - 1, refDay.day);
 		const d = new Date(dl.year, dl.month - 1, dl.day);
-		const diff = Math.round((past.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+		const diff = Math.round(
+			(past.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
+		);
 		if (diff === 1) return 'Yesterday';
 		return `${diff} days ago`;
 	}
@@ -151,7 +165,9 @@ export function formatRelativeDate(deadline: Deadline, referenceDate: Date): str
 	// Future
 	const future = new Date(dl.year, dl.month - 1, dl.day);
 	const ref = new Date(refDay.year, refDay.month - 1, refDay.day);
-	const diff = Math.round((future.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
+	const diff = Math.round(
+		(future.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24),
+	);
 	if (diff === 1) return 'Tomorrow';
 	if (diff <= 7) {
 		const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

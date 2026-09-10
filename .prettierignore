@@ -1,0 +1,7 @@
+# Never format build output or generated files
+main.js
+package-lock.json
+versions.json
+reports/
+docs/
+node_modules/
