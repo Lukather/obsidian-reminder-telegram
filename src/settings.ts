@@ -776,10 +776,9 @@ export class ReminderTelegramSettingTab extends PluginSettingTab {
 				break;
 			case 'dropdown':
 				setting.addDropdown((dropdown) => {
-					/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion -- CI uses different TS resolution */
 					const options: Record<string, string> =
+						// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- CI uses different TS resolution
 						control.options as Record<string, string>;
-					/* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 					for (const value of Object.keys(options)) {
 						const label: string | undefined = options[value];
 						if (label !== undefined) {
