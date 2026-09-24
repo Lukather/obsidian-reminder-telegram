@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-reminder-telegram",
-	"version": "1.0.9",
+	"version": "1.0.10",
 	"description": "Sends Telegram notifications when your Obsidian tasks reach their deadline. Features customizable message templates and Markdown formatting.",
 	"main": "main.js",
 	"type": "module",
