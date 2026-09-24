@@ -37,5 +37,9 @@
 	},
 	"dependencies": {
 		"obsidian": "^1.13.1"
+	},
+	"allowScripts": {
+		"esbuild@0.28.0": true,
+		"esbuild@0.27.7": true
 	}
 }
