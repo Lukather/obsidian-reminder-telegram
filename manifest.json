@@ -1,7 +1,7 @@
 {
 	"id": "reminder-telegram",
 	"name": "Reminder Telegram",
-	"version": "1.0.8",
+	"version": "1.0.9",
 	"minAppVersion": "1.7.2",
 	"description": "Sends Telegram notifications when your tasks reach their deadline. Features customizable message templates and Markdown formatting.",
 	"author": "Lorenzo Strambi",
