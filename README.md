@@ -8,9 +8,14 @@ Obsidian plugin that sends Telegram notifications when your tasks reach their de
 
 ## What's new in 1.0.9
 
-- **Fixed version-bump logic:** `versions.json` now correctly records every release even when `minAppVersion` hasn't changed. Previously, reusing the same `minAppVersion` (e.g., `1.7.2` for multiple releases) caused the new version entry to be silently skipped.
-- **AI feedback loops:** added a `typecheck` script, Husky pre-commit hook with lint-staged + Prettier, and tightened CI checks (lint / typecheck / test) so every commit is verified before it lands.
-- **Eliminated CI lint warnings:** resolved all remaining Obsidian automated-review lint errors and warnings for a clean build.
+- **Exact-time reminders** — tasks with a time component (`YYYY-MM-DDTHH:MM`) now fire at the precise minute via an at-time scheduler, with configurable lead time and a PC-off catch-up window.
+- **Reminder-plugin syntax** — supports `@YYYY-MM-DD HH:MM` and `(@YYYY-MM-DD)` inline date tokens.
+- **Kanban-plugin syntax** — supports `@YYYY-MM-DD @@HH:MM` for date+time and `@YYYY-MM-DD` for date-only inline tasks.
+- **Recurring tasks** — append `🔁 every day|week|month|year` to an inline task; completing it automatically advances the date and re-opens the checkbox.
+- **PC-off catch-up** — missed at-time, overdue, and upcoming notifications fire when Obsidian re-opens, guarded by a configurable time window.
+- **Separate upcoming templates** — upcoming reminders now use their own bulk and individual message templates.
+- **Test message template** — customize the message sent by the "Send test Telegram notification" command.
+- **Modern settings UI** — the settings tab now uses Obsidian's `getSettingDefinitions` API (with a legacy fallback for older app versions) and includes clickable template-variable chips, character counters, and live preview.
 
 ## Features
 
