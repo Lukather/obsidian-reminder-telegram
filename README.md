@@ -6,6 +6,10 @@ Obsidian plugin that sends Telegram notifications when your tasks reach their de
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Lukather/obsidian-reminder-telegram/badge)](https://scorecard.dev/viewer/?uri=github.com/Lukather/obsidian-reminder-telegram)
 
+## What's new in 1.0.9
+
+- **Fixed version-bump logic:** `versions.json` now correctly records every release even when `minAppVersion` hasn't changed. Previously, reusing the same `minAppVersion` (e.g., `1.7.2` for multiple releases) caused the new version entry to be silently skipped.
+
 ## Features
 
 - **Frontmatter + inline tasks** — YAML `scheduled`/`due` fields, `- [ ]` lines with `📅`, `due::`, `scheduled::`, `starts::`, and plain dates
