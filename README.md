@@ -9,6 +9,8 @@ Obsidian plugin that sends Telegram notifications when your tasks reach their de
 ## What's new in 1.0.9
 
 - **Fixed version-bump logic:** `versions.json` now correctly records every release even when `minAppVersion` hasn't changed. Previously, reusing the same `minAppVersion` (e.g., `1.7.2` for multiple releases) caused the new version entry to be silently skipped.
+- **AI feedback loops:** added a `typecheck` script, Husky pre-commit hook with lint-staged + Prettier, and tightened CI checks (lint / typecheck / test) so every commit is verified before it lands.
+- **Eliminated CI lint warnings:** resolved all remaining Obsidian automated-review lint errors and warnings for a clean build.
 
 ## Features
 
